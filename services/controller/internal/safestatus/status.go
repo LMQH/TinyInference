@@ -1,0 +1,3 @@
+package safestatus
+import("time";g "mini-inference/services/controller/internal/contract/generated")
+func Indeterminate(operation string,epoch int64,holder,model,sha string)g.ControllerResult{now:=time.Now().UTC();return g.ControllerResult{Operation:operation,Outcome:"indeterminate",ObservedState:"unknown",AuthorityEpoch:epoch,AuthorityHolder:holder,ModelRef:model,SourceSHA256:sha,Runner:g.Runner{Engine:"llama.cpp",KeepAlive:0},RuntimeResources:g.RuntimeResources{SampledAt:now,UnifiedMemorySource:"unavailable",DiskSource:"unavailable",Metal:"unknown",MetalSource:"unavailable"},ObservedAt:now,Error:&g.SafeError{Code:"state_mismatch",Message:"Authority changed during the controller operation.",Retryable:false}}}

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "producer_contract_version": "1.0.0",
+  "producer_sources": {
+    "services/api/contracts/admin.openapi.yaml": "5d7c6ebea6b5d1517889f06e6aa611a0fc039037e1301345d670548e71084793",
+    "services/api/contracts/admin-events.schema.json": "ab17369d4dacc3706cafdca4b87d94493efb92902921231e8dc2e7a916c4032e"
+  },
+  "generated_files": ["admin.ts"]
+}

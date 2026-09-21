@@ -1,0 +1,401 @@
+name: mini-inference
+
+x-runtime: &runtime
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  init: true
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+
+x-job: &job
+  restart: "no"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  init: true
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+
+services:
+  postgres:
+    <<: *runtime
+    image: ${POSTGRES_IMAGE:?set immutable postgres image@sha256}
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_bootstrap_admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    secrets:
+      - postgres_bootstrap_admin_password
+      - mini_migrator_password
+    configs:
+      - source: postgres_bootstrap_roles
+        target: /docker-entrypoint-initdb.d/00-bootstrap-roles.sql
+        mode: 0444
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=16m"
+      - "/run/postgresql:rw,noexec,nosuid,nodev,size=4m"
+    networks: [data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -q -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    cpus: ${POSTGRES_CPUS:?set measured PostgreSQL CPU limit}
+    mem_limit: ${POSTGRES_MEMORY:?set measured PostgreSQL memory limit}
+    pids_limit: 128
+
+  backup-scheduler:
+    <<: *runtime
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/schedule/backup-scheduler.sh]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/mini_backup_dsn
+      BACKUP_ROOT: /backups
+      SCHEMA_VERSION: ${SCHEMA_VERSION:?set SCHEMA_VERSION}
+      BACKUP_SCHEDULE_UTC: ${BACKUP_SCHEDULE_UTC:?set BACKUP_SCHEDULE_UTC}
+      BACKUP_MAX_AGE_SECONDS: ${BACKUP_MAX_AGE_SECONDS:?set BACKUP_MAX_AGE_SECONDS}
+      BACKUP_FRESHNESS_SECONDS: ${BACKUP_FRESHNESS_SECONDS:?set BACKUP_FRESHNESS_SECONDS}
+    secrets: [mini_backup_dsn]
+    volumes:
+      - type: bind
+        source: ./var/backups/postgres
+        target: /backups
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=16m"
+    networks: [data]
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, /bin/sh, /opt/mini-inference/schedule/backup-scheduler.sh, health]
+      interval: 5m
+      timeout: 15s
+      retries: 2
+      start_period: 2m
+    cpus: ${JOBS_CPUS:?set measured jobs CPU limit}
+    mem_limit: ${JOBS_MEMORY:?set measured jobs memory limit}
+    pids_limit: 64
+
+  controller:
+    <<: *runtime
+    platform: linux/arm64
+    image: ${CONTROLLER_IMAGE:?set immutable controller image@sha256}
+    environment:
+      LISTEN_ADDR: :9090
+      DATABASE_URL_FILE: /run/secrets/mini_controller_epoch_dsn
+      MODEL_RUNNER_HOST: http://model-runner.docker.internal:12435
+      MODEL_ARTIFACT_REF: ${MODEL_OCI_REFERENCE:?set exact packaged local model reference}
+      MODEL_SOURCE_SHA256: ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd
+      DOCKER_MODEL_BIN: /usr/local/bin/docker-model
+      COMPATIBILITY_MANIFEST_FILE: /run/config/compatibility-manifest.json
+    secrets: [mini_controller_epoch_dsn]
+    configs:
+      - source: compatibility_manifest
+        target: /run/config/compatibility-manifest.json
+        mode: 0444
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=16m"
+    networks: [control, data, dmr]
+    extra_hosts: [model-runner.docker.internal:host-gateway]
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, /app/controller, healthcheck, --url=http://127.0.0.1:9090/health/ready]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    cpus: ${CONTROLLER_CPUS:?set measured controller CPU limit}
+    mem_limit: ${CONTROLLER_MEMORY:?set measured controller memory limit}
+    pids_limit: 64
+
+  api:
+    <<: *runtime
+    image: ${API_IMAGE:?set immutable API image@sha256}
+    environment:
+      PUBLIC_ADDR: :8888
+      ADMIN_ADDR: :8889
+      API_KEY_FILE: /run/secrets/api_key
+      DATABASE_URL_FILE: /run/secrets/mini_api_dsn
+      RETENTION_DATABASE_URL_FILE: /run/secrets/mini_retention_dsn
+      CONTROLLER_BASE_URL: http://controller:9090
+      AI_MODEL_NAME: ${MODEL_OCI_REFERENCE:?set exact packaged local model reference}
+      AI_MODEL_URL: http://model-runner.docker.internal:12435
+      COMPATIBILITY_MANIFEST_FILE: /run/config/compatibility-manifest.json
+      COMPATIBILITY_MANIFEST_SHA256: ${COMPATIBILITY_MANIFEST_SHA256:?record compatibility manifest sha256}
+      RESOLVED_COMPOSE_CONFIG_SHA256: ${COMPOSE_CONFIG_SHA256:?record resolved Compose config sha256}
+    secrets: [api_key, mini_api_dsn, mini_retention_dsn]
+    configs:
+      - source: compatibility_manifest
+        target: /run/config/compatibility-manifest.json
+        mode: 0444
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=32m"
+    networks: [ingress, data, control, dmr]
+    ports:
+      - name: inference
+        target: 8888
+        published: "8888"
+        host_ip: ${LAN_BIND_ADDRESS:?set an explicit private interface address}
+        protocol: tcp
+        app_protocol: http
+    extra_hosts: [model-runner.docker.internal:host-gateway]
+    depends_on:
+      postgres: {condition: service_healthy}
+      controller: {condition: service_healthy}
+      backup-scheduler: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, /app/api, healthcheck, --url=http://127.0.0.1:8889/health/ready]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    cpus: ${API_CPUS:?set measured API CPU limit}
+    mem_limit: ${API_MEMORY:?set measured API memory limit}
+    pids_limit: 128
+    deploy:
+      replicas: 1
+
+  web:
+    <<: *runtime
+    image: ${WEB_IMAGE:?set immutable web image@sha256}
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=32m"
+      - "/var/cache/nginx:rw,noexec,nosuid,nodev,size=32m"
+      - "/var/run:rw,noexec,nosuid,nodev,size=4m"
+    networks: [ingress]
+    ports:
+      - name: console
+        target: 8080
+        published: "8080"
+        host_ip: ${LAN_BIND_ADDRESS:?set an explicit private interface address}
+        protocol: tcp
+        app_protocol: http
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -T, "3", -O, /dev/null, http://127.0.0.1:8080/healthz]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    cpus: ${WEB_CPUS:?set measured web CPU limit}
+    mem_limit: ${WEB_MEMORY:?set measured web memory limit}
+    pids_limit: 64
+
+  migrate:
+    <<: *job
+    profiles: [ops]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/jobs/migrate/migrate.sh]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/mini_migrator_dsn
+      ADMIN_DATABASE_URL_FILE: /run/secrets/postgres_bootstrap_admin_dsn
+      MIGRATIONS_ROOT: /opt/mini-inference/migrations
+      EXPECTED_SCHEMA_VERSION: ${SCHEMA_VERSION:?set SCHEMA_VERSION}
+    secrets:
+      - mini_migrator_dsn
+      - postgres_bootstrap_admin_dsn
+      - mini_api_password
+      - mini_retention_password
+      - mini_backup_password
+      - mini_controller_epoch_password
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=16m"
+    networks: [data]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  backup-prune:
+    <<: *job
+    profiles: [ops]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/jobs/backup/backup.sh, prune]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/mini_backup_dsn
+      BACKUP_ROOT: /backups
+      BACKUP_MAX_AGE_SECONDS: ${BACKUP_MAX_AGE_SECONDS:?set BACKUP_MAX_AGE_SECONDS}
+      BACKUP_FRESHNESS_SECONDS: ${BACKUP_FRESHNESS_SECONDS:?set BACKUP_FRESHNESS_SECONDS}
+    secrets: [mini_backup_dsn]
+    volumes:
+      - type: bind
+        source: ./var/backups/postgres
+        target: /backups
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=8m"
+    networks: [data]
+
+  lifecycle-proof:
+    <<: *job
+    profiles: [ops]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/jobs/lifecycle-proof/run.sh]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/mini_controller_epoch_dsn
+      CONTROLLER_BASE_URL: http://controller:9090
+      EXPECTED_MODEL_REF: local/minicpm5-2b:q4_k_m-ec2d58016400
+      EXPECTED_SOURCE_SHA256: ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd
+    secrets: [mini_controller_epoch_dsn]
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=8m"
+    networks: [control, data, dmr]
+    depends_on:
+      controller: {condition: service_healthy}
+
+  postgres-restore:
+    <<: *runtime
+    profiles: [restore]
+    image: ${POSTGRES_IMAGE:?set immutable postgres image@sha256}
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    restart: "no"
+    environment:
+      POSTGRES_DB: mini_inference_restore
+      POSTGRES_USER: restore_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/mini_restore_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    secrets: [mini_restore_password]
+    configs:
+      - source: postgres_restore_role
+        target: /docker-entrypoint-initdb.d/01-restore-role.sh
+        mode: 0555
+    volumes: [restore-data:/var/lib/postgresql/data]
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=16m"
+      - "/run/postgresql:rw,noexec,nosuid,nodev,size=4m"
+    networks: [restore]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -q -U mini_restore -d mini_inference_restore]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  restore-evidence-init:
+    <<: *job
+    profiles: [restore]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    user: "0:0"
+    cap_add: [CHOWN]
+    network_mode: none
+    entrypoint: [/bin/sh, -ec, "chown 0:0 /evidence && chmod 0700 /evidence && chown 70:70 /evidence"]
+    volumes: [restore-evidence:/evidence]
+
+  restore-drill:
+    <<: *job
+    profiles: [restore]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/jobs/restore-drill/restore.sh]
+    environment:
+      RESTORE_DATABASE_URL_FILE: /run/secrets/mini_restore_isolated_dsn
+      RESTORE_ASSERT_DATABASE_URL_FILE: /run/secrets/mini_restore_isolated_admin_dsn
+      RESTORE_ARCHIVE: ${RESTORE_ARCHIVE-}
+      BACKUP_ROOT: /backups
+      EVIDENCE_ROOT: /evidence
+      EXPECTED_SCHEMA_VERSION: ${SCHEMA_VERSION:?set SCHEMA_VERSION}
+    secrets: [mini_restore_isolated_dsn, mini_restore_isolated_admin_dsn]
+    volumes:
+      - type: bind
+        source: ./var/backups/postgres
+        target: /backups
+        read_only: true
+      - restore-evidence:/evidence
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=32m"
+    networks: [restore]
+    depends_on:
+      postgres-restore: {condition: service_healthy}
+      restore-evidence-init: {condition: service_completed_successfully}
+
+  restore-proof-grant:
+    <<: *job
+    profiles: [restore]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/jobs/restore-drill/grant-proof-credential.sh]
+    environment:
+      ADMIN_DATABASE_URL_FILE: /run/secrets/postgres_bootstrap_admin_dsn
+      RESTORE_PASSWORD_FILE: /run/secrets/mini_restore_password
+    secrets: [postgres_bootstrap_admin_dsn, mini_restore_password]
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=8m"
+    networks: [data]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  restore-proof-recorder:
+    <<: *job
+    profiles: [restore]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/jobs/restore-drill/record-proof.sh]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/mini_restore_proof_dsn
+      EVIDENCE_FILE: /evidence/restore-proof.env
+    secrets: [mini_restore_proof_dsn]
+    volumes:
+      - type: volume
+        source: restore-evidence
+        target: /evidence
+        read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=8m"
+    networks: [data]
+    depends_on:
+      postgres: {condition: service_healthy}
+      restore-evidence-init: {condition: service_completed_successfully}
+
+  restore-proof-revoke:
+    <<: *job
+    profiles: [restore]
+    image: ${JOBS_IMAGE:?set immutable jobs image@sha256}
+    entrypoint: [/bin/sh, /opt/mini-inference/jobs/restore-drill/revoke-proof-credential.sh]
+    environment:
+      ADMIN_DATABASE_URL_FILE: /run/secrets/postgres_bootstrap_admin_dsn
+    secrets: [postgres_bootstrap_admin_dsn]
+    networks: [data]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+networks:
+  ingress: {driver: bridge}
+  data: {driver: bridge, internal: true}
+  control: {driver: bridge, internal: true}
+  dmr: {driver: bridge}
+  restore: {driver: bridge, internal: true}
+
+volumes:
+  postgres-data: {}
+  restore-data: {}
+  restore-evidence: {}
+
+configs:
+  compatibility_manifest:
+    file: ./config/compatibility-manifest.json
+  postgres_bootstrap_roles:
+    file: ./ops/postgres/00-bootstrap-roles.sql
+  postgres_restore_role:
+    file: ./ops/postgres/01-restore-role.sh
+
+secrets:
+  api_key: {file: ./var/secrets/api_key}
+  postgres_bootstrap_admin_password: {file: ./var/secrets/postgres_bootstrap_admin_password}
+  postgres_bootstrap_admin_dsn: {file: ./var/secrets/postgres_bootstrap_admin_dsn}
+  mini_migrator_password: {file: ./var/secrets/mini_migrator_password}
+  mini_migrator_dsn: {file: ./var/secrets/mini_migrator_dsn}
+  mini_api_dsn: {file: ./var/secrets/mini_api_dsn}
+  mini_retention_dsn: {file: ./var/secrets/mini_retention_dsn}
+  mini_controller_epoch_dsn: {file: ./var/secrets/mini_controller_epoch_dsn}
+  mini_backup_dsn: {file: ./var/secrets/mini_backup_dsn}
+  mini_restore_isolated_dsn: {file: ./var/secrets/mini_restore_isolated_dsn}
+  mini_restore_isolated_admin_dsn: {file: ./var/secrets/mini_restore_isolated_admin_dsn}
+  mini_restore_proof_dsn: {file: ./var/secrets/mini_restore_proof_dsn}
+  mini_api_password: {file: ./var/secrets/mini_api_password}
+  mini_retention_password: {file: ./var/secrets/mini_retention_password}
+  mini_backup_password: {file: ./var/secrets/mini_backup_password}
+  mini_restore_password: {file: ./var/secrets/mini_restore_password}
+  mini_controller_epoch_password: {file: ./var/secrets/mini_controller_epoch_password}
+

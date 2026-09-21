@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "generator_version": "1.0.0",
+  "hash_algorithm": "sha256",
+  "sources": {
+    "admin-events.schema.json": "ab17369d4dacc3706cafdca4b87d94493efb92902921231e8dc2e7a916c4032e",
+    "admin.openapi.yaml": "5d7c6ebea6b5d1517889f06e6aa611a0fc039037e1301345d670548e71084793",
+    "config.schema.json": "bb18ee447bb3c2c9c312e8090db233be0264a55017200cd4bac09637c91c186b",
+    "controller.openapi.yaml": "f7bbed2fe8ddc7edd8682eaedb1bdbb48c54662019155bf82eb1525101fa55c3",
+    "public.openapi.yaml": "4e80b3a5cb6f8ae4b87d46e06718b209ce589ecc3839c828257489943e6cba13"
+  }
+}

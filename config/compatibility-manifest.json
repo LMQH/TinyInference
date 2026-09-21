@@ -1,0 +1,124 @@
+{
+  "manifest_version": 1,
+  "release": {
+    "status": "verified",
+    "version": "mvp",
+    "created_at": "2026-09-20T21:28:19Z",
+    "target_environment": "apple-silicon-mac-private-lan",
+    "target_architecture": "linux/arm64"
+  },
+  "model": {
+    "source_path": "models/openbmb/MiniCPM5-2B-GGUF/MiniCPM5-2B-Q4_K_M.gguf",
+    "source_size_bytes": 1561318368,
+    "source_sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd",
+    "oci_reference": "local/minicpm5-2b:q4_k_m-ec2d58016400",
+    "oci_digest": "sha256:f9a8b75d13bc73edef8e6e57de5eae43b56208d689a3f0d1a8a6d0cc99ad0045",
+    "tokenizer_artifact": {
+      "path": "var/artifacts/tokenizer/tokenizer.gguf",
+      "size_bytes": 5122873,
+      "sha256": "aca9a37a125d499bddecd4efc7afec046b516656dd3cd5a870d73fbc042c3ad7",
+      "source_sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+    }
+  },
+  "images": {
+    "api": {
+      "reference": "sha256:34835c2c3665475e12a7378ed7b8b2099f576e3e52c35b03654480b3c09485dc",
+      "digest": "sha256:34835c2c3665475e12a7378ed7b8b2099f576e3e52c35b03654480b3c09485dc",
+      "architecture": "linux/arm64"
+    },
+    "web": {
+      "reference": "sha256:2dc0b3e7793b749e00757a40daae5fd993540333ab14126aee62aa36b274161c",
+      "digest": "sha256:2dc0b3e7793b749e00757a40daae5fd993540333ab14126aee62aa36b274161c",
+      "architecture": "linux/arm64"
+    },
+    "controller": {
+      "reference": "sha256:f6ca697747002f6d09e984b26ee3ed514f0cc48fb70236520fe744fd6069f2c5",
+      "digest": "sha256:f6ca697747002f6d09e984b26ee3ed514f0cc48fb70236520fe744fd6069f2c5",
+      "architecture": "linux/arm64"
+    },
+    "jobs": {
+      "reference": "sha256:846b49f5617f19f62a2eb11c14ad117065d6f0388bb3cc83538e6b5b99da21c7",
+      "digest": "sha256:846b49f5617f19f62a2eb11c14ad117065d6f0388bb3cc83538e6b5b99da21c7",
+      "architecture": "linux/arm64"
+    },
+    "postgres": {
+      "reference": "postgres:17.4-alpine@sha256:7062a2109c4b51f3c792c7ea01e83ed12ef9a980886e3b3d380a7d2e5f6ce3f5",
+      "version": "17.4",
+      "digest": "sha256:7062a2109c4b51f3c792c7ea01e83ed12ef9a980886e3b3d380a7d2e5f6ce3f5",
+      "architecture": "linux/arm64"
+    }
+  },
+  "build_bases": {
+    "go_builder": "golang:1.25.8-alpine@sha256:8e02eb337d9e0ea459e041f1ee5eece41cbb61f1d83e7d883a3e2fb4862063fa",
+    "distroless_static": "gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab",
+    "node_builder": "node:22.14.0-alpine@sha256:9bef0ef1e268f60627da9ba7d7605e8831d5b56ad07487d24d1aa386336d1944",
+    "nginx_runtime": "nginx:1.27.4-alpine@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591",
+    "postgres_client": "postgres:17.4-alpine@sha256:7062a2109c4b51f3c792c7ea01e83ed12ef9a980886e3b3d380a7d2e5f6ce3f5"
+  },
+  "controller_plugin": {
+    "repository": "https://github.com/docker/model-runner.git",
+    "version": "v1.2.6",
+    "commit": "34ca88db7c3e992a3203725a24c5c6728957207d",
+    "binary_sha256": "9635cbef816d3781496f3f2516b83b753518cc7d43f97ddb6a801c690996a14c",
+    "target": "linux/arm64"
+  },
+  "platform": {
+    "docker_desktop_version": "4.91.0 (239619)",
+    "docker_engine_version": "29.8.0",
+    "docker_compose_version": "5.5.1",
+    "docker_model_plugin_version": "v1.2.6",
+    "dmr_version": "ca5782d0408d33e579144f7f9a6e1cd2e65cc351+mini-inference-no-request-recording (sha256:3a46f98d0f520f80e52ffa4b8b44d00f2f6ba55a431c280e2e911f718f5a2a93)",
+    "bundled_engine": "llama.cpp",
+    "bundled_engine_version": "b9879-metal (72874f559c598b8f89fbb24864868337cf5afb4c, sha256:5c809b3524b3bf1f58c949f0701e40c7c09de5de52d16240a482f4ecd8dd7978)",
+    "postgresql_version": "17.4"
+  },
+  "settings": {
+    "context_size": 131072,
+    "batch_size": 2048,
+    "default_temperature": 0.8,
+    "reasoning_budget": -1,
+    "cache_reuse": 256,
+    "keep_alive": -1,
+    "max_active_requests": 1,
+    "max_waiting_requests": 20,
+    "queue_timeout_seconds": 1800
+  },
+  "resource_provenance": {
+    "cpu_percent": "api_container",
+    "unified_memory": "dmr_process",
+    "disk": "project_storage",
+    "metal": "dmr_process"
+  },
+  "database": {
+    "migration_version": 6
+  },
+  "resolved_compose_config_sha256": "634838d4203de18274d1fc3203b1709d75f802ac269e6f190053d154e8e4c78e",
+  "privacy_gate": {
+    "status": "passed",
+    "evidence_id": "privacy-20260920T212819Z-live-identity",
+    "exact_build_set": "model:f9a8b75d13bc73edef8e6e57de5eae43b56208d689a3f0d1a8a6d0cc99ad0045;api:34835c2c3665475e12a7378ed7b8b2099f576e3e52c35b03654480b3c09485dc;web:2dc0b3e7793b749e00757a40daae5fd993540333ab14126aee62aa36b274161c;controller:f6ca697747002f6d09e984b26ee3ed514f0cc48fb70236520fe744fd6069f2c5;jobs:846b49f5617f19f62a2eb11c14ad117065d6f0388bb3cc83538e6b5b99da21c7;dmr:3a46f98d0f520f80e52ffa4b8b44d00f2f6ba55a431c280e2e911f718f5a2a93;llama:5c809b3524b3bf1f58c949f0701e40c7c09de5de52d16240a482f4ecd8dd7978",
+    "inspected_surfaces": [
+      "application_logs",
+      "dmr_request_history",
+      "dmr_logs",
+      "project_files",
+      "browser_storage",
+      "backup_artifact_and_isolated_restore"
+    ],
+    "timepoints": [
+      "during_request",
+      "immediately_after",
+      "after_runner_restart"
+    ],
+    "passed": true
+  },
+  "evidence": {
+    "lifecycle": "lifecycle-20260920T212240Z-live-identity",
+    "inference": "inference-20260920T212530Z-reasoning-usage",
+    "privacy": "privacy-20260920T212819Z-live-identity",
+    "backup_restore": "backup-restore-20260920T212950Z-isolated",
+    "browser": "browser-20260920T213052Z-console",
+    "portability": "lan-boundary-20260920T213052Z-private-only"
+  },
+  "unresolved_fields": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mini-inference.local/contracts/admin-events.schema.json",
+  "title": "Mini-Inference Admin SSE Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "snapshot_version", "occurred_at", "type", "data"],
+  "properties": {
+    "event_id": {"type": "integer", "minimum": 1},
+    "snapshot_version": {"type": "integer", "minimum": 1},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "type": {"enum": ["snapshot_changed", "model_changed", "queue_changed", "metrics_updated", "alert_changed", "operation_changed", "resync_required"]},
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "changed": {"type": "array", "uniqueItems": true, "items": {"enum": ["service", "model", "queue", "resources", "requests", "metrics", "alerts", "logs", "operations"]}},
+        "request_id": {"type": "string", "format": "uuid"},
+        "operation_id": {"type": "string", "format": "uuid"},
+        "code": {"type": "string"},
+        "count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

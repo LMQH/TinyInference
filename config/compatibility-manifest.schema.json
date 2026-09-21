@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mini-inference.local/schemas/compatibility-manifest-v1.json",
+  "title": "Mini-Inference compatibility manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "release", "model", "images", "build_bases", "controller_plugin", "platform", "settings", "resource_provenance", "database", "resolved_compose_config_sha256", "privacy_gate", "evidence", "unresolved_fields"],
+  "$defs": {
+    "digest": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+    "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "digest", "architecture"],
+      "properties": {
+        "reference": {"type": ["string", "null"], "minLength": 1},
+        "version": {"type": ["string", "null"], "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "architecture": {"const": "linux/arm64"}
+      }
+    }
+  },
+  "properties": {
+    "manifest_version": {"const": 1},
+    "release": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "version", "created_at", "target_environment", "target_architecture"],
+      "properties": {
+        "status": {"enum": ["unresolved", "verified"]},
+        "version": {"const": "mvp"},
+        "created_at": {"type": ["string", "null"], "format": "date-time"},
+        "target_environment": {"const": "apple-silicon-mac-private-lan"},
+        "target_architecture": {"const": "linux/arm64"}
+      }
+    },
+    "model": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_path", "source_size_bytes", "source_sha256", "oci_reference", "oci_digest", "tokenizer_artifact"],
+      "properties": {
+        "source_path": {"const": "models/openbmb/MiniCPM5-2B-GGUF/MiniCPM5-2B-Q4_K_M.gguf"},
+        "source_size_bytes": {"const": 1561318368},
+        "source_sha256": {"const": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"},
+        "oci_reference": {"const": "local/minicpm5-2b:q4_k_m-ec2d58016400"},
+        "oci_digest": {"$ref": "#/$defs/digest"},
+        "tokenizer_artifact": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["path", "size_bytes", "sha256", "source_sha256"],
+          "properties": {
+            "path": {"const": "var/artifacts/tokenizer/tokenizer.gguf"},
+            "size_bytes": {"type": "integer", "minimum": 1},
+            "sha256": {"$ref": "#/$defs/sha256"},
+            "source_sha256": {"const": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"}
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "object", "additionalProperties": false,
+      "required": ["api", "web", "controller", "jobs", "postgres"],
+      "properties": {
+        "api": {"$ref": "#/$defs/image"}, "web": {"$ref": "#/$defs/image"},
+        "controller": {"$ref": "#/$defs/image"}, "jobs": {"$ref": "#/$defs/image"},
+        "postgres": {"$ref": "#/$defs/image"}
+      }
+    },
+    "build_bases": {
+      "type": "object", "additionalProperties": false,
+      "required": ["go_builder", "distroless_static", "node_builder", "nginx_runtime", "postgres_client"],
+      "properties": {
+        "go_builder": {"type": ["string", "null"], "pattern": "@sha256:[0-9a-f]{64}$"},
+        "distroless_static": {"type": ["string", "null"], "pattern": "@sha256:[0-9a-f]{64}$"},
+        "node_builder": {"type": ["string", "null"], "pattern": "@sha256:[0-9a-f]{64}$"},
+        "nginx_runtime": {"type": ["string", "null"], "pattern": "@sha256:[0-9a-f]{64}$"},
+        "postgres_client": {"type": ["string", "null"], "pattern": "@sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "controller_plugin": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repository", "version", "commit", "binary_sha256", "target"],
+      "properties": {
+        "repository": {"const": "https://github.com/docker/model-runner.git"},
+        "version": {"type": ["string", "null"], "minLength": 1},
+        "commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+        "binary_sha256": {"$ref": "#/$defs/sha256"},
+        "target": {"const": "linux/arm64"}
+      }
+    },
+    "platform": {
+      "type": "object", "additionalProperties": false,
+      "required": ["docker_desktop_version", "docker_engine_version", "docker_compose_version", "docker_model_plugin_version", "dmr_version", "bundled_engine", "bundled_engine_version", "postgresql_version"],
+      "properties": {
+        "docker_desktop_version": {"type": ["string", "null"]}, "docker_engine_version": {"type": ["string", "null"]},
+        "docker_compose_version": {"type": ["string", "null"]}, "docker_model_plugin_version": {"type": ["string", "null"]},
+        "dmr_version": {"type": ["string", "null"]}, "bundled_engine": {"const": "llama.cpp"},
+        "bundled_engine_version": {"type": ["string", "null"]}, "postgresql_version": {"type": ["string", "null"]}
+      }
+    },
+    "settings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["context_size", "batch_size", "default_temperature", "reasoning_budget", "cache_reuse", "keep_alive", "max_active_requests", "max_waiting_requests", "queue_timeout_seconds"],
+      "properties": {
+        "context_size": {"const": 131072}, "batch_size": {"const": 2048}, "default_temperature": {"const": 0.8},
+        "reasoning_budget": {"const": -1}, "cache_reuse": {"const": 256}, "keep_alive": {"const": -1},
+        "max_active_requests": {"const": 1}, "max_waiting_requests": {"const": 20}, "queue_timeout_seconds": {"const": 1800}
+      }
+    },
+    "resource_provenance": {
+      "const": {"cpu_percent": "api_container", "unified_memory": "dmr_process", "disk": "project_storage", "metal": "dmr_process"}
+    },
+    "database": {"const": {"migration_version": 6}},
+    "resolved_compose_config_sha256": {"$ref": "#/$defs/sha256"},
+    "privacy_gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "evidence_id", "exact_build_set", "inspected_surfaces", "timepoints", "passed"],
+      "properties": {
+        "status": {"enum": ["unresolved", "passed", "failed"]},
+        "evidence_id": {"type": ["string", "null"]}, "exact_build_set": {"type": ["string", "null"]},
+        "inspected_surfaces": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "timepoints": {"const": ["during_request", "immediately_after", "after_runner_restart"]},
+        "passed": {"type": "boolean"}
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["lifecycle", "inference", "privacy", "backup_restore", "browser", "portability"],
+      "properties": {
+        "lifecycle": {"type": ["string", "null"]}, "inference": {"type": ["string", "null"]},
+        "privacy": {"type": ["string", "null"]}, "backup_restore": {"type": ["string", "null"]},
+        "browser": {"type": ["string", "null"]}, "portability": {"type": ["string", "null"]}
+      }
+    },
+    "unresolved_fields": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {"if": {"properties": {"release": {"properties": {"status": {"const": "verified"}}}}},
+     "then": {"properties": {"unresolved_fields": {"maxItems": 0}, "privacy_gate": {"properties": {"status": {"const": "passed"}, "passed": {"const": true}}}}}}
+  ]
+}

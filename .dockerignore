@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+backups
+runtime
+var/secrets/
+var/backups/
+node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/dist
+**/coverage
+*.log
+models

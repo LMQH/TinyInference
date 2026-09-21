@@ -1,0 +1,108 @@
+openapi: 3.1.0
+info: {title: Mini-Inference Admin API, version: 1.0.0}
+servers: [{url: 'http://api:8889'}]
+paths:
+  /admin/v1/snapshot:
+    get:
+      operationId: getSnapshot
+      parameters: [{$ref: '#/components/parameters/IfNoneMatch'}]
+      responses: {'200': {description: Snapshot, headers: {ETag: {schema: {type: string}}}, content: {application/json: {schema: {$ref: '#/components/schemas/AdminSnapshot'}}}}, '304': {description: Unchanged}, default: {$ref: '#/components/responses/Error'}}
+  /admin/v1/requests:
+    get:
+      operationId: listRequests
+      parameters: [{$ref: '#/components/parameters/Cursor'}, {$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/IfNoneMatch'}]
+      responses: {'200': {description: Request page, content: {application/json: {schema: {$ref: '#/components/schemas/RequestPage'}}}}, '304': {description: Unchanged}, default: {$ref: '#/components/responses/Error'}}
+  /admin/v1/metrics:
+    get:
+      operationId: getMetrics
+      parameters:
+        - {name: window, in: query, required: true, schema: {enum: [1h, 24h, 7d, 30d]}}
+        - {name: granularity, in: query, required: true, schema: {enum: [1m, 1h, 1d]}}
+        - {$ref: '#/components/parameters/IfNoneMatch'}
+      responses: {'200': {description: Metrics, content: {application/json: {schema: {$ref: '#/components/schemas/MetricsResponse'}}}}, '304': {description: Unchanged}, default: {$ref: '#/components/responses/Error'}}
+  /admin/v1/alerts:
+    get:
+      operationId: listAlerts
+      parameters: [{$ref: '#/components/parameters/Cursor'}, {$ref: '#/components/parameters/Limit'}, {$ref: '#/components/parameters/IfNoneMatch'}]
+      responses: {'200': {description: Alert page, content: {application/json: {schema: {$ref: '#/components/schemas/AlertPage'}}}}, '304': {description: Unchanged}, default: {$ref: '#/components/responses/Error'}}
+  /admin/v1/logs:
+    get:
+      operationId: listLogs
+      parameters: [{$ref: '#/components/parameters/Cursor'}, {$ref: '#/components/parameters/Limit'}, {name: level, in: query, schema: {enum: [info, warning, error]}}, {$ref: '#/components/parameters/IfNoneMatch'}]
+      responses: {'200': {description: Safe log page, content: {application/json: {schema: {$ref: '#/components/schemas/LogPage'}}}}, '304': {description: Unchanged}, default: {$ref: '#/components/responses/Error'}}
+  /admin/v1/operations:
+    get:
+      operationId: getOperations
+      parameters: [{$ref: '#/components/parameters/IfNoneMatch'}]
+      responses: {'200': {description: Operations, content: {application/json: {schema: {$ref: '#/components/schemas/OperationsResponse'}}}}, '304': {description: Unchanged}, default: {$ref: '#/components/responses/Error'}}
+  /admin/v1/events:
+    get:
+      operationId: streamEvents
+      parameters: [{name: Last-Event-ID, in: header, schema: {type: string, pattern: '^[0-9]+$'}}]
+      responses: {'200': {description: SSE stream, content: {text/event-stream: {schema: {type: string}}}}, default: {$ref: '#/components/responses/Error'}}
+  /admin/v1/model/start:
+    post: {operationId: startModel, responses: {'202': {description: Accepted, content: {application/json: {schema: {$ref: '#/components/schemas/ModelActionAccepted'}}}}, default: {$ref: '#/components/responses/Error'}}}
+  /admin/v1/model/stop:
+    post: {operationId: stopModel, responses: {'202': {description: Accepted, content: {application/json: {schema: {$ref: '#/components/schemas/ModelActionAccepted'}}}}, default: {$ref: '#/components/responses/Error'}}}
+  /admin/v1/queue/{request_id}/cancel:
+    post:
+      operationId: cancelWaiting
+      parameters: [{name: request_id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Cancelled, content: {application/json: {schema: {$ref: '#/components/schemas/CancelResult'}}}}, default: {$ref: '#/components/responses/Error'}}
+  /health/live:
+    get: {operationId: live, responses: {'200': {description: Live}}}
+  /health/ready:
+    get: {operationId: ready, responses: {'200': {description: Ready}, '503': {description: Not ready}}}
+  /metrics:
+    get: {operationId: prometheusMetrics, responses: {'200': {description: Prometheus text}}}
+components:
+  parameters:
+    Cursor: {name: cursor, in: query, schema: {type: string}}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+    IfNoneMatch: {name: If-None-Match, in: header, schema: {type: string}}
+  responses:
+    Error: {description: Safe error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+  schemas:
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [message, type, code, param, request_id, retryable, retry_after_seconds]
+      properties: {message: {type: string}, type: {type: string}, code: {type: string}, param: {type: [string, 'null']}, request_id: {type: string, format: uuid}, retryable: {type: boolean}, retry_after_seconds: {type: [integer, 'null']}}
+    ErrorEnvelope: {type: object, additionalProperties: false, required: [error], properties: {error: {$ref: '#/components/schemas/ErrorDetail'}}}
+    AdminSnapshot:
+      type: object
+      additionalProperties: false
+      required: [snapshot_version, generated_at, service, model, queue, resources, active_alert_count]
+      properties:
+        snapshot_version: {type: integer, format: int64}
+        generated_at: {type: string, format: date-time}
+        service: {$ref: '#/components/schemas/ServiceSnapshot'}
+        model: {$ref: '#/components/schemas/ModelSnapshot'}
+        queue: {$ref: '#/components/schemas/QueueSnapshot'}
+        resources: {$ref: '#/components/schemas/ResourceSnapshot'}
+        active_alert_count: {type: integer, minimum: 0}
+    ServiceSnapshot: {type: object, additionalProperties: false, required: [state, ready, authority_epoch, reason_code], properties: {state: {enum: [starting, ready, degraded, stopping]}, ready: {type: boolean}, authority_epoch: {type: integer, format: int64}, reason_code: {type: [string, 'null']}}}
+    ModelFailure: {type: object, additionalProperties: false, required: [code, message, retryable], properties: {code: {type: string}, message: {type: string}, retryable: {type: boolean}}}
+    ModelSnapshot: {type: object, additionalProperties: false, required: [state, transition_started_at, operation_id, failure], properties: {state: {enum: [unloaded, starting, ready, stopping, unavailable]}, transition_started_at: {type: string, format: date-time}, operation_id: {type: [string, 'null'], format: uuid}, failure: {oneOf: [{$ref: '#/components/schemas/ModelFailure'}, {type: 'null'}]}}}
+    ActiveRequest: {type: object, additionalProperties: false, required: [id, status, endpoint, stream, reasoning_enabled, enqueued_at, started_at], properties: {id: {type: string, format: uuid}, status: {const: active}, endpoint: {enum: [chat.completions, completions]}, stream: {type: boolean}, reasoning_enabled: {type: boolean}, enqueued_at: {type: string, format: date-time}, started_at: {type: string, format: date-time}}}
+    WaitingRequest: {type: object, additionalProperties: false, required: [id, status, endpoint, stream, reasoning_enabled, position, enqueued_at, deadline_at, can_cancel], properties: {id: {type: string, format: uuid}, status: {const: waiting}, endpoint: {enum: [chat.completions, completions]}, stream: {type: boolean}, reasoning_enabled: {type: boolean}, position: {type: integer, minimum: 1}, enqueued_at: {type: string, format: date-time}, deadline_at: {type: string, format: date-time}, can_cancel: {type: boolean}}}
+    QueueSnapshot: {type: object, additionalProperties: false, required: [capacity, depth, active, waiting], properties: {capacity: {const: 20}, depth: {type: integer, minimum: 0, maximum: 20}, active: {oneOf: [{$ref: '#/components/schemas/ActiveRequest'}, {type: 'null'}]}, waiting: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/WaitingRequest'}}}}
+    ResourceSnapshot: {type: object, additionalProperties: false, required: [status, sampled_at, cpu_percent, cpu_source, unified_memory_used_bytes, unified_memory_total_bytes, unified_memory_source, disk_used_bytes, disk_total_bytes, disk_source, metal, metal_source, reason_code], properties: {status: {enum: [available, partial, unavailable, stale]}, sampled_at: {type: [string, 'null'], format: date-time}, cpu_percent: {type: [number, 'null'], minimum: 0}, cpu_source: {enum: [api_container, unavailable]}, unified_memory_used_bytes: {type: [integer, 'null'], minimum: 0}, unified_memory_total_bytes: {type: [integer, 'null'], minimum: 0}, unified_memory_source: {enum: [dmr_process, unavailable]}, disk_used_bytes: {type: [integer, 'null'], minimum: 0}, disk_total_bytes: {type: [integer, 'null'], minimum: 0}, disk_source: {enum: [project_storage, unavailable]}, metal: {enum: [enabled, disabled, unknown]}, metal_source: {enum: [dmr_process, unavailable]}, reason_code: {type: [string, 'null']}}}
+    RequestRecord: {type: object, additionalProperties: false, required: [id, endpoint, public_model_id, stream, reasoning_enabled, tool_calls_returned, status, terminal_code, http_status, created_at, enqueued_at, started_at, first_token_at, completed_at, input_tokens, output_tokens, reasoning_tokens, queue_wait_ms, ttft_ms, duration_ms, throughput_tokens_per_second], properties: {id: {type: string, format: uuid}, endpoint: {enum: [chat.completions, completions]}, public_model_id: {type: string}, stream: {type: boolean}, reasoning_enabled: {type: boolean}, tool_calls_returned: {type: boolean}, status: {enum: [waiting, active, succeeded, failed, cancelled, queue_timeout, interrupted, rejected]}, terminal_code: {type: [string, 'null']}, http_status: {type: [integer, 'null']}, created_at: {type: string, format: date-time}, enqueued_at: {type: [string, 'null'], format: date-time}, started_at: {type: [string, 'null'], format: date-time}, first_token_at: {type: [string, 'null'], format: date-time}, completed_at: {type: [string, 'null'], format: date-time}, input_tokens: {type: [integer, 'null']}, output_tokens: {type: [integer, 'null']}, reasoning_tokens: {type: [integer, 'null']}, queue_wait_ms: {type: [integer, 'null']}, ttft_ms: {type: [integer, 'null']}, duration_ms: {type: [integer, 'null']}, throughput_tokens_per_second: {type: [number, 'null']}}}
+    RequestPage: {type: object, additionalProperties: false, required: [items, next_cursor], properties: {items: {type: array, items: {$ref: '#/components/schemas/RequestRecord'}}, next_cursor: {type: [string, 'null']}}}
+    Outcomes: {type: object, additionalProperties: false, required: [waiting, active, succeeded, failed, cancelled, queue_timeout, interrupted, rejected], properties: {waiting: {type: integer}, active: {type: integer}, succeeded: {type: integer}, failed: {type: integer}, cancelled: {type: integer}, queue_timeout: {type: integer}, interrupted: {type: integer}, rejected: {type: integer}}}
+    MetricPoint: {type: object, additionalProperties: false, required: [bucket_start, request_count, outcomes, input_tokens, output_tokens, reasoning_tokens, throughput_tokens_per_second, ttft_ms_avg, duration_ms_avg], properties: {bucket_start: {type: string, format: date-time}, request_count: {type: integer}, outcomes: {$ref: '#/components/schemas/Outcomes'}, input_tokens: {type: integer}, output_tokens: {type: integer}, reasoning_tokens: {type: integer}, throughput_tokens_per_second: {type: [number, 'null']}, ttft_ms_avg: {type: [number, 'null']}, duration_ms_avg: {type: [number, 'null']}}}
+    MetricsResponse: {type: object, additionalProperties: false, required: [from, to, granularity, series], properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, granularity: {enum: [1m, 1h, 1d]}, series: {type: array, items: {$ref: '#/components/schemas/MetricPoint'}}}}
+    Alert: {type: object, additionalProperties: false, required: [id, severity, code, message, first_seen_at, last_seen_at, state, occurrences], properties: {id: {type: string, format: uuid}, severity: {enum: [info, warning, critical]}, code: {type: string}, message: {type: string}, first_seen_at: {type: string, format: date-time}, last_seen_at: {type: string, format: date-time}, state: {enum: [active, resolved]}, occurrences: {type: integer, minimum: 1}}}
+    AlertPage: {type: object, additionalProperties: false, required: [items, next_cursor], properties: {items: {type: array, items: {$ref: '#/components/schemas/Alert'}}, next_cursor: {type: [string, 'null']}}}
+    SafeLog: {type: object, additionalProperties: false, required: [id, occurred_at, level, event_code, request_id, operation_id, message], properties: {id: {type: integer, format: int64}, occurred_at: {type: string, format: date-time}, level: {enum: [info, warning, error]}, event_code: {type: string}, request_id: {type: [string, 'null'], format: uuid}, operation_id: {type: [string, 'null'], format: uuid}, message: {type: string}}}
+    LogPage: {type: object, additionalProperties: false, required: [items, next_cursor], properties: {items: {type: array, items: {$ref: '#/components/schemas/SafeLog'}}, next_cursor: {type: [string, 'null']}}}
+    RunOutcome: {enum: [succeeded, failed, unknown]}
+    RetentionOperation: {type: object, additionalProperties: false, required: [cutoff_at, last_run_at, outcome, deleted_rows], properties: {cutoff_at: {type: [string, 'null'], format: date-time}, last_run_at: {type: [string, 'null'], format: date-time}, outcome: {$ref: '#/components/schemas/RunOutcome'}, deleted_rows: {type: [integer, 'null'], minimum: 0}}}
+    BackupOperation: {type: object, additionalProperties: false, required: [last_run_at, outcome, artifact_name, retained_count, next_expected_at], properties: {last_run_at: {type: [string, 'null'], format: date-time}, outcome: {$ref: '#/components/schemas/RunOutcome'}, artifact_name: {type: [string, 'null'], pattern: '^[^/\\\\]+$'}, retained_count: {type: [integer, 'null'], minimum: 0}, next_expected_at: {type: [string, 'null'], format: date-time}}}
+    TokenTotals: {type: object, additionalProperties: false, required: [input, output, reasoning], properties: {input: {type: integer, minimum: 0}, output: {type: integer, minimum: 0}, reasoning: {type: integer, minimum: 0}}}
+    RestoreProofOperation: {type: object, additionalProperties: false, required: [last_run_at, outcome, restored_request_count, restored_token_totals], properties: {last_run_at: {type: [string, 'null'], format: date-time}, outcome: {$ref: '#/components/schemas/RunOutcome'}, restored_request_count: {type: [integer, 'null'], minimum: 0}, restored_token_totals: {oneOf: [{$ref: '#/components/schemas/TokenTotals'}, {type: 'null'}]}}}
+    ModelOperation: {type: object, additionalProperties: false, required: [id, operation, status, requested_at, started_at, completed_at, result_code, observed_state], properties: {id: {type: string, format: uuid}, operation: {enum: [start, stop, reconcile_unload]}, status: {enum: [running, succeeded, failed, indeterminate, interrupted]}, requested_at: {type: string, format: date-time}, started_at: {type: string, format: date-time}, completed_at: {type: [string, 'null'], format: date-time}, result_code: {type: [string, 'null']}, observed_state: {type: [string, 'null'], enum: [loaded, unloaded, unknown, null]}}}
+    OperationsResponse: {type: object, additionalProperties: false, required: [retention, backup, restore_proof, model_operations], properties: {retention: {$ref: '#/components/schemas/RetentionOperation'}, backup: {$ref: '#/components/schemas/BackupOperation'}, restore_proof: {$ref: '#/components/schemas/RestoreProofOperation'}, model_operations: {type: array, items: {$ref: '#/components/schemas/ModelOperation'}}}}
+    ModelActionAccepted: {type: object, additionalProperties: false, required: [operation_id, status, accepted_at], properties: {operation_id: {type: string, format: uuid}, status: {const: running}, accepted_at: {type: string, format: date-time}}}
+    CancelResult: {type: object, additionalProperties: false, required: [request_id, status, cancelled_at, snapshot_version], properties: {request_id: {type: string, format: uuid}, status: {const: cancelled}, cancelled_at: {type: string, format: date-time}, snapshot_version: {type: integer, format: int64}}}

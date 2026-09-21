@@ -1,0 +1,38 @@
+# Local runtime state
+models/
+.env
+.env.*
+!.env.example
+
+# Database and backups
+runtime/
+backups/*
+!backups/.gitkeep
+var/secrets/
+var/backups/
+var/artifacts/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Go
+bin/
+coverage.out
+
+# Frontend
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log

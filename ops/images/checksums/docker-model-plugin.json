@@ -1,0 +1,8 @@
+{
+  "status": "resolved",
+  "repository": "https://github.com/docker/model-runner.git",
+  "commit": "34ca88db7c3e992a3203725a24c5c6728957207d",
+  "target": "linux/arm64",
+  "binary": "docker-model",
+  "sha256": "9635cbef816d3781496f3f2516b83b753518cc7d43f97ddb6a801c690996a14c"
+}

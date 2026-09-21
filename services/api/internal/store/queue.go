@@ -1,0 +1,4 @@
+package store
+import("context";"time";"github.com/google/uuid")
+type QueueRecord struct{ID uuid.UUID;Endpoint string;Stream,Reasoning bool;Status string;Enqueued time.Time;Started *time.Time;Arrival int64}
+func(s *Store)QueueRecords(ctx context.Context)(*QueueRecord,[]QueueRecord,error){rows,e:=s.pool.Query(ctx,"select id,endpoint,stream,reasoning_enabled,status,enqueued_at,started_at,arrival_seq from api_request_history where status in ('active','waiting') order by case when status='active' then 0 else 1 end,arrival_seq");if e!=nil{return nil,nil,e};defer rows.Close();var active *QueueRecord;var waiting []QueueRecord;for rows.Next(){var x QueueRecord;if e=rows.Scan(&x.ID,&x.Endpoint,&x.Stream,&x.Reasoning,&x.Status,&x.Enqueued,&x.Started,&x.Arrival);e!=nil{return nil,nil,e};if x.Status=="active"{y:=x;active=&y}else{waiting=append(waiting,x)}};return active,waiting,rows.Err()}

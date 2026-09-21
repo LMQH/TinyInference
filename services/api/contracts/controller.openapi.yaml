@@ -1,0 +1,27 @@
+openapi: 3.1.0
+info: {title: Mini-Inference Controller API, version: 1.0.0}
+servers: [{url: 'http://controller:9090'}]
+paths:
+  /internal/v1/model/status: {$ref: '#/components/pathItems/status'}
+  /internal/v1/model/load: {$ref: '#/components/pathItems/load'}
+  /internal/v1/model/unload: {$ref: '#/components/pathItems/unload'}
+components:
+  parameters:
+    RequestID: {name: X-Request-ID, in: header, schema: {type: string, format: uuid}}
+    Epoch: {name: X-Authority-Epoch, in: header, required: true, schema: {type: integer, format: int64, minimum: 1}}
+    Holder: {name: X-Authority-Holder, in: header, required: true, schema: {type: string, format: uuid}}
+  pathItems:
+    status:
+      get: {operationId: status, parameters: [{$ref: '#/components/parameters/RequestID'}, {$ref: '#/components/parameters/Epoch'}, {$ref: '#/components/parameters/Holder'}], responses: {'200': {$ref: '#/components/responses/Result'}, default: {$ref: '#/components/responses/Error'}}}
+    load:
+      post: {operationId: load, parameters: [{$ref: '#/components/parameters/RequestID'}, {$ref: '#/components/parameters/Epoch'}, {$ref: '#/components/parameters/Holder'}], responses: {'200': {$ref: '#/components/responses/Result'}, default: {$ref: '#/components/responses/Error'}}}
+    unload:
+      post: {operationId: unload, parameters: [{$ref: '#/components/parameters/RequestID'}, {$ref: '#/components/parameters/Epoch'}, {$ref: '#/components/parameters/Holder'}], responses: {'200': {$ref: '#/components/responses/Result'}, default: {$ref: '#/components/responses/Error'}}}
+  responses:
+    Result: {description: Bounded result, content: {application/json: {schema: {$ref: '#/components/schemas/ControllerResult'}}}}
+    Error: {description: Protocol error, content: {application/json: {schema: {$ref: '#/components/schemas/ControllerError'}}}}
+  schemas:
+    SafeError: {type: object, additionalProperties: false, required: [code, message, retryable], properties: {code: {enum: [controller_unavailable, runner_unavailable, cli_failed, timeout, state_mismatch, status_exec, status_parse, version_exec, version_parse, ps_exec, ps_parse, invalid_request]}, message: {type: string}, retryable: {type: boolean}}}
+    RuntimeResources: {type: object, additionalProperties: false, required: [sampled_at, unified_memory_used_bytes, unified_memory_total_bytes, unified_memory_source, disk_used_bytes, disk_total_bytes, disk_source, metal, metal_source], properties: {sampled_at: {type: string, format: date-time}, unified_memory_used_bytes: {type: [integer, 'null']}, unified_memory_total_bytes: {type: [integer, 'null']}, unified_memory_source: {enum: [dmr_process, unavailable]}, disk_used_bytes: {type: [integer, 'null']}, disk_total_bytes: {type: [integer, 'null']}, disk_source: {enum: [project_storage, unavailable]}, metal: {enum: [enabled, disabled, unknown]}, metal_source: {enum: [dmr_process, unavailable]}}}
+    ControllerResult: {type: object, additionalProperties: false, required: [operation, outcome, observed_state, authority_epoch, authority_holder, model_ref, source_sha256, runner, runtime_resources, observed_at, error], properties: {operation: {enum: [status, load, unload]}, outcome: {enum: [succeeded, failed, indeterminate]}, observed_state: {enum: [loaded, unloaded, unknown]}, authority_epoch: {type: integer, format: int64}, authority_holder: {type: string, format: uuid}, model_ref: {type: string}, source_sha256: {type: string, pattern: '^[a-f0-9]{64}$'}, runner: {type: object, additionalProperties: false, required: [available, dmr_version, engine, engine_version, keep_alive], properties: {available: {type: boolean}, dmr_version: {type: string}, engine: {const: llama.cpp}, engine_version: {type: string}, keep_alive: {type: integer, enum: [-1, 0], description: '-1 is verified infinite retention; 0 is unverified.'}}}, runtime_resources: {$ref: '#/components/schemas/RuntimeResources'}, observed_at: {type: string, format: date-time}, error: {oneOf: [{$ref: '#/components/schemas/SafeError'}, {type: 'null'}]}}}
+    ControllerError: {type: object, additionalProperties: false, required: [error], properties: {error: {$ref: '#/components/schemas/SafeError'}}}

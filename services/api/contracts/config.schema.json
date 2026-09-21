@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mini-inference.local/contracts/config.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["PUBLIC_ADDR", "ADMIN_ADDR", "API_KEY_FILE", "DATABASE_URL_FILE", "RETENTION_DATABASE_URL_FILE", "AI_MODEL_URL", "AI_MODEL_NAME", "CONTROLLER_BASE_URL"],
+  "properties": {
+    "PUBLIC_ADDR": {"const": ":8888"},
+    "ADMIN_ADDR": {"const": ":8889"},
+    "API_KEY_FILE": {"type": "string", "minLength": 1},
+    "DATABASE_URL_FILE": {"type": "string", "minLength": 1},
+    "RETENTION_DATABASE_URL_FILE": {"type": "string", "minLength": 1},
+    "AI_MODEL_URL": {"const": "http://model-runner.docker.internal:12435"},
+    "AI_MODEL_NAME": {"const": "local/minicpm5-2b:q4_k_m-ec2d58016400"},
+    "CONTROLLER_BASE_URL": {"const": "http://controller:9090"},
+    "MODEL_CONTEXT_SIZE": {"const": 131072},
+    "MODEL_BATCH_SIZE": {"const": 2048},
+    "MODEL_DEFAULT_TEMPERATURE": {"const": 0.8},
+    "MODEL_KEEP_ALIVE": {"const": -1},
+    "LISTEN_ADDR": {"const": ":9090"},
+    "MODEL_RUNNER_HOST": {"const": "http://model-runner.docker.internal:12435"},
+    "MODEL_ARTIFACT_REF": {"const": "local/minicpm5-2b:q4_k_m-ec2d58016400"},
+    "MODEL_SOURCE_SHA256": {"const": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"},
+    "DOCKER_MODEL_BIN": {"const": "/usr/local/bin/docker-model"}
+  }
+}
