@@ -5,14 +5,14 @@
 - **目标文件：** `docs/quality/01-test-spec.md`
 - **适用范围：** Mini-Inference MVP，AC-001～AC-037
 - **测试对象：** 后续实现形成的一个明确、不可变 revision/build
-- **权威输入：** `AGENTS.md`、`PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`（Approved）、`docs/adr/0001-system-architecture.md`（Effective）、`docs/technical/backend.md`（Implementation-ready）、`docs/technical/frontend.md`（Implementation-ready）、`docs/technical/operations.md`（Implementation-ready）
+- **权威输入：** `AGENTS.md`、`PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`（Approved）、`docs/adr/0001-system-architecture.md`（Effective）、`docs/adr/0002-project-built-compatible-dmr.md`（Effective）、`docs/adr/0004-restore-mac-deployment-target.md`（Effective）、`docs/technical/backend.md`（Implementation-ready）、`docs/technical/frontend.md`（Implementation-ready）、`docs/technical/operations.md`（Implementation-ready）
 - **文档边界：** 本文件定义独立测试场景、预期可观察结果、证据和 QA 判定规则；不修改产品行为、架构或实现，不替代代码审查、合规/安全审查或用户产品验收。
 
 ## 1. 目标与原则
 
 本规格把全部 37 项产品验收标准映射到可执行、revision-bound 的测试。测试必须覆盖：
 
-1. 真实 Apple Silicon Mac、真实 Docker Compose、真实 Docker Model Runner（DMR）、真实 llama.cpp/Metal 与批准 GGUF；
+1. 当前 Apple Silicon Mac、真实 Docker Compose、真实项目构建的 host-loopback Docker Model Runner（DMR）、真实 llama.cpp/Metal 与批准 GGUF；
 2. 正常流程、明确错误/边界、授权边界、竞态、取消、重启、最大上下文、缓存、隐私、保留、备份/恢复、controller 可执行性、可观测性和真实浏览器可访问性；
 3. 源码级永久自动化测试与真实运行时验收的明确分工；
 4. 每项 AC 的可观察结果、证据类型和阻塞条件；
@@ -37,8 +37,8 @@
 - 被测 Git commit SHA；工作树若非干净，记录完整 patch SHA-256，并将“commit + patch digest”视为唯一 revision；
 - `config/compatibility-manifest.json` 的 SHA-256、schema/migration version、解析后的 Compose config SHA-256；
 - `api`、`web`、`controller`、PostgreSQL、备份/恢复/保留 job 的镜像 digest；禁止只记录 tag；
-- Docker Desktop、Docker Engine、Compose、project-built DMR commit/binary digest、Docker Model plugin、llama.cpp commit/binary digest、PostgreSQL、浏览器及辅助技术版本；
-- Mac 型号、Apple Silicon 架构、macOS 版本、物理统一内存与可用磁盘仅作为环境身份记录，不作为容器可观测指标冒充来源；
+- Docker Desktop、Compose、project-built DMR commit/binary digest、Docker Model plugin、llama.cpp commit/binary digest、PostgreSQL、浏览器及辅助技术版本；
+- 当前 Apple Silicon Mac 的环境身份、macOS 版本、芯片型号、统一内存容量与 DMR Metal 开始/结束观测；这些信息仅作为环境身份和 Metal 启用证据，不作为容器指标冒充来源；
 - GGUF 路径、大小 `1561318368`、SHA-256 `ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd`，以及本地 OCI digest；
 - 私有 LAN/VPN 接口和测试客户端地址；报告中对非必要地址脱敏；
 - 测试开始和结束时的时钟同步状态；
@@ -48,18 +48,18 @@
 
 ### 2.2 必需环境
 
-- 当前 Apple Silicon Mac；Linux 部署不属于本轮验收。
-- 应用服务只由项目 Compose 启动；宿主机不得直接启动 `api`、`web`、`controller` 或 PostgreSQL。
-- DMR 是宿主设施和唯一推理运行时；真实加载 llama.cpp，并观察 Metal 已启用。
+- 当前 Apple Silicon Mac 私有网络环境；Linux、计算盒子和公共网络环境均不属于本轮 MVP 验收。
+- 应用服务只由项目 Compose 启动；宿主机不得直接启动 `api`、`web`、`controller` 或 PostgreSQL。DMR 是项目构建的宿主机 loopback 设施，不属于 Compose 服务。
+- DMR 是唯一推理运行时；真实加载 llama.cpp，通过 Metal 后端运行批准 GGUF 并观察 Metal 启用。
 - 唯一逻辑 Compose 拓扑：`api`、`web`、`controller`、`postgres`、`backup-scheduler`，以及批准的一次性运维 job；`api` 仅一副本。
 - 公共入口只绑定明确私有接口的 `8888` 和 `8080`；不得使用 `0.0.0.0` 作为“私网证明”。`api:8889` 仅在 Compose 网络内供 `web` 管理代理使用。
-- `12435`（DMR）、`9090`（controller）、`5432`（PostgreSQL）、`8889` 与 health/metrics 内部端口不得从 LAN 可达。
-- controller 为 Linux ARM64，使用 manifest 钉住的 plugin 和显式 `MODEL_RUNNER_HOST=http://model-runner.docker.internal:12435`，无 Docker Engine socket；API readiness 必须把 live DMR、llama.cpp 和 model digest 绑定到 exact build set。
+- `12435`（DMR host loopback）、`9090`（controller）、`5432`（PostgreSQL）、`8889` 与 health/metrics 内部端口不得从 LAN 可达。
+- controller 使用 manifest 钉住的 plugin 和显式 `MODEL_RUNNER_HOST=http://model-runner.docker.internal:12435`，无 Docker Engine socket；API readiness 必须把 live DMR、llama.cpp、model、Metal identity 绑定到 exact build set。
 - API key 通过批准的 runtime secret file 提供，值为 `888888`；证据不得记录 Authorization header 或 secret file 内容。
 - `var/backups/postgres` 位于仓库内；测试备份、恢复 drill 数据库与保留夹具和生产/个人数据隔离。
-- 浏览器组合：Safari 当前稳定版 + VoiceOver 和 Chrome 当前稳定版为必测；Firefox、Edge 的当前稳定版及前一个主要版本做功能/布局兼容检查。若目标 Mac 上某一浏览器不可用，必须记录为未覆盖风险，不能标 Pass。
+- 浏览器组合：Chrome 当前稳定版与 Safari + VoiceOver 为必测；Firefox/Edge 做功能与布局兼容检查，未覆盖风险必须记录。
 - LAN 侧测试客户端必须与宿主私网边界分离，足以证明“LAN 可达/不可达”；只从宿主 localhost 探测不能证明 AC-034/037。
-- host restart、SIGKILL、网络隔离、受控数据库/controller/DMR 故障和时间边界测试必须在批准的本地验收窗口执行；不得触及远程或真实生产环境。
+- host restart、SIGKILL、网络隔离、受控数据库/controller/DMR 故障和时间边界测试必须在当前 Apple Silicon Mac 的验收窗口执行；不得触及未授权的其他环境。
 
 ### 2.3 数据夹具与安全
 
@@ -156,7 +156,7 @@ artifacts/qa/<revision>/<run-id>/
 
 ### 4.2 不可由永久源码测试替代的运行时场景
 
-以下必须在 exact revision 的真实环境执行：controller 容器内 CLI/DMR 可执行性、Metal、真实模型 load/warm/inference/unload、reasoning 开关与分离、工具调用但不执行、131072 上下文真实可用性、KV cache 生命周期、并发队列和真实取消、gateway/host restart、DMR 隐私、带来源的应用/DMR运行时资源指标、性能基线、每日备份与实际恢复、LAN 不可达边界、真实浏览器和 VoiceOver/键盘/缩放。
+以下必须在 exact revision 的当前 Apple Silicon Mac 上执行：controller 容器内 CLI/DMR 可执行性、Metal 后端启用、真实模型 load/warm/inference/unload、reasoning 开关与分离、工具调用但不执行、131072 上下文真实可用性、KV cache 生命周期、并发队列和真实取消、gateway/host restart、DMR 隐私、带来源的应用/DMR运行时资源指标、性能基线、每日备份与实际恢复、LAN 不可达边界、真实浏览器和键盘/缩放。
 
 ## 5. 可执行场景
 
@@ -166,8 +166,7 @@ artifacts/qa/<revision>/<run-id>/
 
 **覆盖：** AC-001、005、006、034、035、037  
 **步骤：** 记录第 2 节全部身份；渲染同一 Compose 配置；检查服务、网络、published ports、replica、mount、image digest、配置/secret 交付；从独立 LAN 客户端探测允许和禁止端口及路径。  
-**预期：** 仅五个长期服务；`api` 一副本；应用只在 Compose；只有私网绑定的 8888/8080 可达；8888 仅允许批准的 `/v1` 方法/路径并拒绝 admin/internal/health/metrics；8889 仅 Compose 内可达且只由 web 代理批准的 admin 表面；12435/9090/5432 与内部 health/metrics 不可达；任何容器均无 Engine socket；DMR/controller/PG 无 LAN proxy；只有一个 DMR/runtime/model；live runtime identity 与 manifest exact build set 一致；无公共监听、外部告警 sink、tool executor 或 Linux MVP 部署。  
-**证据：** 解析配置与 digest、network/mount/port inventory、LAN 端口与路径探测、web 代理成功及 SSE 无缓冲/`Last-Event-ID` 恢复结果、配置哈希。任何禁止路径存在即 Block。
+**预期：** 仅五个长期服务；`api` 一副本；应用只在 Compose 中运行，DMR 为 host-loopback 设施；只有私网绑定的 8888/8080 可达；8888 仅允许批准的 `/v1` 方法/路径并拒绝 admin/internal/health/metrics；8889 仅 Compose 内可达且只由 web 代理批准的 admin 表面；12435/9090/5432 与内部 health/metrics 不可达；任何容器均无 Engine socket；DMR 无 LAN proxy、host-network、privileged 或 unrestricted `/dev`；只有一个 DMR/runtime/model；llama.cpp 以 Metal 成功加载批准 GGUF。
 
 #### RT-MODEL-01 — GGUF 不可变、唯一模型与固定配置
 
@@ -179,7 +178,7 @@ artifacts/qa/<revision>/<run-id>/
 #### RT-CTRL-01 — Controller 正向生命周期证明
 
 **覆盖：** AC-001、003、004、005、035  
-**步骤：** 从 Compose 启动的 Linux ARM64 controller 执行固定 status→load/warm→status→unload→status；关联 backend operation；观察 plugin checksum/version、明确 host、模型 identity、Metal、CLI 结果和 observed state。  
+**步骤：** 由 Compose 中的 controller 执行固定 status→load/warm→status→unload→status；关联 backend operation；观察 plugin checksum/version、明确的 host-loopback DMR route、模型 identity、Metal 后端、CLI 结果和 observed state。
 **预期：** status 可区分 unloaded/loaded；load 后仅批准模型 loaded 且 warm probe 成功，backend 才能 ready；unload 后模型明确 absent，backend 才能 unloaded；HTTP 200 本身不被当成功；不调用 undocumented lifecycle HTTP route。  
 **证据：** operation IDs、bounded controller JSON、backend state timeline、plugin/engine identity、DMR inventory。
 
@@ -333,8 +332,9 @@ artifacts/qa/<revision>/<run-id>/
 #### RT-UI-03 — 资源、请求/token/性能指标一致性
 
 **覆盖：** AC-025、026、028  
-**步骤：** 对一次条件固定的真实请求，关联 DB/backend 指标与 UI；分别核对 API 容器 CPU、DMR 进程常驻/统一内存、项目/模型/运行时存储、DMR Metal 状态及每个字段的来源枚举；使单一 resource adapter unavailable/stale；切换图表/数据表。
-**预期：** UI 用明确标签展示应用与 DMR 推理运行时资源及其来源，不把 Docker VM/容器值冒充为物理 Mac 全机指标；Metal 显示 enabled/disabled/unknown，不显示虚构 GPU utilization；请求量、input/output/reasoning token、throughput、TTFT、duration 与权威记录一致；缺样本为 unavailable/null，部分可用为 partial，陈旧样本为 stale，均不补零；指标失败不改变模型事实。
+**步骤：** 对一次条件固定的真实请求，关联 DB/backend 指标与 UI；分别核对 API 容器 CPU、DMR 进程可归属统一内存、项目/模型/运行时存储、DMR Metal 状态及每个字段的来源枚举；使单一 resource adapter unavailable/stale；切换图表/数据表。
+
+**预期：** UI 用明确标签展示应用与 DMR 推理运行时资源及其来源，不把 Docker VM/容器值冒充为物理主机全机指标；Metal 如实显示 `enabled|disabled|unknown`，不显示虚构 GPU utilization；请求量、input/output/reasoning token、throughput、TTFT、duration 与权威记录一致；缺样本为 unavailable/null，部分可用为 partial，陈旧样本为 stale，均不补零；指标失败不改变模型事实。
 **证据：** 同 request ID 的 DB/API/UI 对照、每字段 provenance、运行时采样证据、截图和采样时间。
 
 #### RT-OBS-01 — 告警渠道边界
@@ -422,7 +422,7 @@ artifacts/qa/<revision>/<run-id>/
 
 | AC | 主要场景 | 必须有的真实证据 | 通过条件摘要 |
 |---|---|---|---|
-| AC-001 | RT-ENV-01, RT-CTRL-01 | Compose、controller、DMR/Metal、真实模型 | 应用仅 Compose；DMR llama.cpp+Metal 成功加载 |
+| AC-001 | RT-ENV-01, RT-CTRL-01 | Compose、controller、host-loopback DMR/Metal、真实模型 | 应用仅 Compose；DMR llama.cpp 以 Metal 成功加载批准模型 |
 | AC-002 | RT-LIFE-01 | 冷启动 UI/API/queue | 已卸载；503；depth 不增 |
 | AC-003 | RT-CTRL-01/02, RT-LIFE-01 | load/warm 成功与受控失败 | 成功后才 ready；失败不可用 |
 | AC-004 | RT-LIFE-02, RT-CTRL-02 | active/waiting/controller/UI | 取消、清队列、明确 unload 后才已卸载 |
@@ -446,7 +446,7 @@ artifacts/qa/<revision>/<run-id>/
 | AC-022 | RT-FAIL-01 及 queue/lifecycle 场景 | API/DB/UI 终态矩阵 | 成功与各失败可区分，不伪装 |
 | AC-023 | RT-UI-01, RT-A11Y-01/02 | 真实浏览器 | 中文、无登录、批准动作可用 |
 | AC-024 | RT-UI-01/02, queue/lifecycle | 浏览器状态时间线 | 服务/模型/active/FIFO/变化可观察 |
-| AC-025 | RT-UI-03 | 运行时采样、来源枚举与 UI 对照 | 应用/DMR 运行时 CPU、统一内存、存储、Metal 可见且不冒充物理主机 |
+| AC-025 | RT-UI-03 | 运行时采样、来源枚举与 UI 对照 | 应用/DMR 运行时 CPU、推理内存、存储、真实加速器 backend/status 可见且不冒充物理主机 |
 | AC-026 | RT-UI-03 | 单 request 的 DB/API/UI 对照 | 请求、三类 token、吞吐、TTFT、时长一致 |
 | AC-027 | RT-OBS-01 | UI/log/egress | 仅 UI+结构化日志；无外部通知 |
 | AC-028 | RT-PERF-01, RT-UI-03 | real baseline artifact | 条件完整、可复现、无数值门槛 |
@@ -487,8 +487,8 @@ P0/P1 必须 Block。P2/P3 只能在所有 AC 已有完整证据时形成 `Risk`
 
 ### 7.2 预先识别的残余风险分类
 
-- **已接受、须记录但不单独阻塞：** 单节点无 HA/正式 SLA；固定弱 key；无登录控制台；内部 DMR 未认证；controller 固定 lifecycle 权限；project-built host runtime 可用性；每日备份 RPO；性能无阈值。
-- **证据型阻塞风险：** 131072 统一内存可行性、per-request reasoning、tokenizer/template 对齐、cache 可观察与销毁、containerized CLI + explicit host、资源来源准确性、DMR 隐私 compatibility gate、真实 restore。任一没有可执行证据即 Block，不得标成已接受风险。
+- **已接受、须记录但不单独阻塞：** 单节点无 HA/正式 SLA；固定弱 key；无登录控制台；loopback DMR 未认证；controller 固定 lifecycle 权限；项目构建 DMR 的兼容性；每日备份 RPO；性能无阈值。
+- **证据型阻塞风险：** 131072 统一内存可行性、Metal 启用、per-request reasoning、tokenizer/template 对齐、cache 可观察与销毁、containerized CLI + host-loopback DMR route、资源来源准确性、DMR 隐私 compatibility gate、真实 restore。任一没有可执行证据即 Block，不得标成已接受风险。
 - **治理状态：** 三份技术规格均为 Implementation-ready；任何后续规格变化都必须在同一 implementation revision 中重新审查。
 
 ## 8. Pass / Risk / Block / Needs decision 规则

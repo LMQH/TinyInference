@@ -2,7 +2,7 @@
 
 Status: Approved
 Owner: Product owner (user)
-Approval date: 2026-09-21
+Approval date: 2026-09-21 (updated by product owner deployment authorization)
 
 ## Product
 
@@ -13,8 +13,8 @@ Mini-Inference is a private-network/VPN appliance that serves the existing MiniC
 - API users are the owner's applications and development tools on a trusted LAN or VPN.
 - The owner is the sole maintainer and operator.
 - The service is intended to remain available as a household service, without a formal SLA.
-- The current Apple Silicon Mac is the MVP verification environment.
-- A future Linux server must use the same Compose design, but server deployment is not part of MVP acceptance.
+- The current Apple Silicon Mac is the sole formal deployment and MVP verification environment.
+- iOS is an approved API-client platform only; it does not host the service or run the model locally.
 
 ## Inference behavior
 
@@ -89,9 +89,8 @@ Mini-Inference is a private-network/VPN appliance that serves the existing MiniC
 - Embeddings, Anthropic, Ollama, or complete OpenAI API compatibility.
 - Prompt or response history.
 - Persistent KV cache across model unload or platform restart.
-- Exact Metal GPU utilization.
-- External alert integrations.
-- Linux server deployment in the MVP.
+- Exact real-time Metal GPU utilization.
+- Linux server deployment, compute-appliance deployment, and iOS local inference/server deployment in the MVP.
 
 ## Acceptance evidence
 

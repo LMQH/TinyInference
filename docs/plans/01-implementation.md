@@ -2,16 +2,16 @@
 
 - **Status:** Implementation-ready
 - **Owner / integration owner:** 后端开发工程师 (`backend`)
-- **Target repository:** `/Users/lmqhx/code_space/Mini-Inference`
+- **Target repository:** `/Users/lmqhx/code_space/TinyInference`
 - **Authorized change set:** implementation planning only; this plan does not authorize implementation, commit, push, remote deployment, account/secret access, host dependency installation, host scheduler installation, public exposure, or destructive live-database recovery
-- **Authoritative inputs:** `AGENTS.md`, `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/technical/backend.md`, `docs/technical/frontend.md`, `docs/technical/operations.md`
+- **Authoritative inputs:** `AGENTS.md`, `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/adr/0002-project-built-compatible-dmr.md`, `docs/adr/0003-compute-appliance-compose-gpu-runtime.md`, `docs/technical/backend.md`, `docs/technical/frontend.md`, `docs/technical/operations.md`, and `docs/plans/02-compute-appliance-feasibility.md`
 - **Independent verification input:** `docs/quality/01-test-spec.md`
-- **Target acceptance:** PRD `AC-001` through `AC-037`, with real Compose, DMR, model, database, backup/restore, and browser evidence
-- **Specification review result:** reviewed specifications are aligned for contract generation and implementation. The plan below incorporates the final listener separation, authority/lifecycle serialization, reconciliation, retention, DMR keep-alive/privacy, and scoped resource contracts.
+- **Target acceptance:** PRD `AC-001` through `AC-037`, with real target-appliance Compose, DMR, GPU offload, model, database, backup/restore, and browser evidence
+- **Specification review result:** reviewed specifications are aligned for contract generation and implementation. Gates A and B in `02-compute-appliance-feasibility.md` are mandatory prerequisites; this plan begins full implementation only after both pass.
 
 ## 1. Delivery rules
 
-1. Implement only the approved P0 scope. P1/P2 work, Linux deployment, public exposure, multi-model support, a second inference runtime, tool execution, HA, accounts, external notifications, persistent prompt/KV cache, and full OpenAI compatibility are prohibited.
+1. Implement only the approved P0 scope on the current Apple Silicon Mac. P1/P2 work, Linux or compute-appliance deployment, public exposure, multi-model support, a second inference runtime, tool execution, HA, accounts, external notifications, persistent prompt/KV cache, iOS local inference/server work, and full OpenAI compatibility are prohibited.
 2. The implementation owner does not approve its own work. Runtime QA, code review, compliance/security review, and product acceptance are separate gates against an identified revision and compatibility-manifest digest.
 3. 后端开发工程师 is the single integration owner. Integration ownership means sealing shared contracts, coordinating checkpoints, assembling the candidate revision, and resolving cross-component contract drift. It does **not** permit edits in another owner's paths.
 4. No file has concurrent writers. Every task below has one owner and an exclusive allowed-path set. A task may consume another owner's files read-only after the named checkpoint.
@@ -64,7 +64,7 @@ Seal the exact files produced by P-00 and record their SHA-256 values in the han
 
 **Owners of evidence:** 运维工程师 executes the approved local lifecycle-proof surface; 后端开发工程师 correlates backend/controller outcomes; 测试工程师 independently witnesses and later repeats it at G-QA.
 
-Pass requires the pinned Linux ARM64 plugin inside the Compose controller, explicit `MODEL_RUNNER_HOST`, no Engine socket, fixed serialized status/load/unload only, epoch+holder authority validation before spawn and throughout every operation, observed state matching, verified `keep-alive=-1` with stale-readiness/eviction failure, transient-only inaccessible DMR memory handling with privacy scans during the canary request, immediately after it, and after runner restart proving zero disk/log persistence and zero post-restart history/storage persistence, one approved model identity, successful content-safe warm probe, Metal enabled, and every negative case failing closed. Failure blocks further runtime integration.
+Pass requires the pinned controller plugin, explicit host-loopback `MODEL_RUNNER_HOST`, no Engine socket, fixed serialized status/load/unload only, epoch+holder authority validation before spawn and throughout every operation, observed state matching, verified `keep-alive=-1` with stale-readiness/eviction failure, transient-only inaccessible DMR memory handling with privacy scans during the canary request, immediately after it, and after runner restart proving zero disk/log/history persistence.
 
 ### IC-03 — Integrated Contract and Data Gate
 
@@ -136,7 +136,7 @@ Each slice is a complete task contract. “Evidence” is the acceptance evidenc
 - **Owner:** 后端开发工程师 (`backend`)
 - **Allowed paths:** `services/api/internal/http/admin/**`, `services/api/internal/adminstream/**`, `services/api/internal/metrics/**`, `services/api/internal/resources/**`, `services/api/internal/alerts/**`, `services/api/internal/safelog/**`, `services/api/internal/retention/**`, `services/api/internal/operations/**`
 - **Inputs:** P-00 admin/event contracts; B-01 store; B-02 state snapshots; B-03 usage timings; controller status contract
-- **Outputs:** all specified admin GET/action endpoints on Compose-only `:8889`; ETag/304; bounded SSE replay and heartbeat; authoritative snapshots; fixed metrics windows; safe alerts/log projection; scoped API-container CPU, DMR-process unified memory, project/model/runtime storage, and DMR-engine Metal with exact provenance; pre-admission loaded-state verification that makes readiness unavailable on eviction/mismatch rather than reloading silently; hourly aggregation and daily 30-day retention scheduling with startup catch-up; retention/backup/restore evidence projection; internal health/readiness semantics
+- **Outputs:** all specified admin GET/action endpoints on Compose-only `:8889`; ETag/304; bounded SSE replay and heartbeat; authoritative snapshots; fixed metrics windows; safe alerts/log projection; scoped API-container CPU, DMR-process unified memory, project/model/runtime storage, and DMR-engine Metal status with exact provenance; pre-admission loaded-state verification that makes readiness unavailable on eviction/mismatch rather than reloading silently; hourly aggregation and daily 30-day pruning.
 - **Dependencies:** B-01–B-03; controller response consumption from C-01 contract
 - **Acceptance evidence:** scoped API checks prove `:8889` is reachable only from Compose peers through the web allowlist, nullable/unknown semantics, pagination order, legal metric combinations, replay ≤1000 and forced resync, exact resource provenance/staleness, eviction or stale loaded state fails readiness and admission, action conflicts, fixed log fields, no external alert transport, and unavailable resources without fabricated zeroes or mislabeled scopes
 - **Trace:** AC-003, AC-004, AC-017, AC-020–033, AC-035–037
@@ -227,7 +227,7 @@ The integration owner indexes evidence by stable IDs without storing prohibited 
 
 - `E-CONTRACT`: sealed contract hashes and deterministic generation result.
 - `E-SCHEMA`: migration version, schema constraints, fence behavior, and no-content column inspection.
-- `E-LIFECYCLE`: controller positive/negative gate, model source before/after hash, OCI digest, loaded inventory, warm/unload outcome, Metal status.
+- `E-LIFECYCLE`: controller positive/negative gate, model source before/after hash, OCI digest, loaded inventory, warm/unload outcome, llama.cpp Metal backend and enabled state.
 - `E-API`: authentication, strict parameter matrix, chat/completion stream/non-stream, reasoning, tools-no-execution, context boundary, cancellation.
 - `E-QUEUE`: one-active/FIFO/capacity/timeout/cancel/Stop/restart/fence evidence.
 - `E-OBS`: safe logs/alerts, metrics/token/timing correlation, exact application/DMR/project resource-provenance proof, verified loaded-state/`keep-alive=-1`, and performance baseline conditions.
@@ -244,7 +244,7 @@ Evidence records the candidate revision, compatibility-manifest digest, timestam
 
 - **Owner:** 测试工程师 (`qa`), independent and read-only over implementation
 - **Input:** frozen candidate from IC-04, `docs/quality/01-test-spec.md`, all evidence bundle definitions
-- **Execution:** run the real Docker Compose/DMR/model/API/queue/database/backup-restore/browser scenarios on the current Apple Silicon Mac. Unit or mock evidence cannot replace runtime acceptance.
+- **Execution:** run the real Docker Compose/host-loopback DMR/Metal/model/API/queue/database/backup-restore/browser scenarios on the current Apple Silicon Mac. Unit or mock evidence cannot replace runtime acceptance.
 - **Required report:** `docs/quality/02-qa-acceptance.md`, naming revision and manifest digest; per-scenario pass/fail, exact executed commands, evidence references, defects, residual risks, and full AC-001–AC-037 trace
 - **Pass rule:** every P0 scenario passes; performance values are recorded without a numeric threshold. A failure returns to the exclusive owner and invalidates affected later gates.
 

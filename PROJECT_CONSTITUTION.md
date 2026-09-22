@@ -16,7 +16,7 @@ Deliver a private-network, single-model inference appliance for MiniCPM5-2B with
 5. Data minimization: prompts, responses, and reasoning content are neither persisted nor logged.
 6. Explicit failure: authentication, unsupported parameters, unavailable model, overload, queue timeout, and context overflow produce stable errors; no silent fallback.
 7. No tool execution: the service may return model-generated tool calls but cannot execute them.
-8. Portable orchestration: the application uses one Compose design for the verified Mac environment and a future private Linux server.
+8. Approved deployment: the current Apple Silicon Mac is the sole formal deployment and MVP verification environment; application services run through one Compose topology and DMR remains a loopback-only host runtime.
 9. Evidence before completion: real model, API, queue, persistence, backup/restore, and browser scenarios must pass before completion is claimed.
 
 ## Approved risk posture

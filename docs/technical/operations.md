@@ -4,13 +4,13 @@
 - **Owner:** 运维工程师
 - **Target environment:** MVP on the current Apple Silicon Mac, private LAN/VPN only
 - **Portability target:** the same logical Compose topology on a future private Linux host; Linux deployment and acceptance are not authorized in the MVP
-- **Authoritative inputs:** `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/adr/0002-project-built-compatible-dmr.md`, `docs/architecture/00-dmr-research.md`, and `docs/architecture/01-controller-feasibility.md`
+- **Authoritative inputs:** `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/adr/0002-project-built-compatible-dmr.md`, `docs/adr/0004-restore-mac-deployment-target.md`, `docs/architecture/00-dmr-research.md`, and `docs/architecture/01-controller-feasibility.md`
 
 ## 1. Scope and non-goals
 
 This specification owns the Compose topology, immutable images, Docker Model Runner (DMR) integration, model OCI packaging, networks, configuration delivery, persistent volumes, the Compose-contained backup scheduler, operational one-shot jobs, health/readiness, telemetry transport, backup/restore, compatibility versioning, rollout/rollback, and runtime proof procedure.
 
-The Go `api` remains the sole business, queue, lifecycle, public-contract, and database-schema authority. The React/TypeScript `web` consumes backend contracts. The `controller` is only a fixed lifecycle adapter. DMR is the sole inference runtime and is a host facility, not a Compose service. Redis, a second inference runtime, multiple models, high availability, public exposure, external alert delivery, and Linux deployment are excluded.
+The Go `api` remains the sole business, queue, lifecycle, public-contract, and database-schema authority. The React/TypeScript `web` consumes backend contracts. The `controller` is only a fixed lifecycle adapter. DMR is the sole inference runtime and is a loopback-only host facility, not a Compose service. Redis, a second inference runtime, multiple models, high availability, public exposure, external alert delivery, Linux deployment, and iOS local inference are excluded.
 
 No procedure in this document authorizes a commit, push, remote deployment, public exposure, account or secret access, host dependency installation, host startup modification, or destructive recovery of the live database. Those actions require separate authorization.
 
@@ -99,7 +99,7 @@ The `api` long-form model binding SHALL inject exactly `AI_MODEL_URL` and `AI_MO
 
 Prompt/KV reuse is enabled only in DMR memory. It SHALL have no application persistence. Explicit unload and platform restart must destroy the cache. The project patch removes the DMR request recorder. Every compatibility set has a mandatory privacy gate: the manifest identifies exact model, application image, DMR binary, and llama.cpp binary digests; API startup compares the live DMR, llama.cpp, and packaged-model identities before readiness. The selected set must also prove that request/response bodies do not reach logs or disk. An unevidenced or mismatched build fails `api` readiness. DMR request-history surfaces are never operational observability sources.
 
-The 131072 context is a material unified-memory risk. OOM, unsupported flag, or engine rejection blocks readiness; the system must not silently reduce context, batch size, reasoning, or cache behavior.
+The 131072 context is a material inference-memory risk. OOM, unsupported flag, or engine rejection blocks readiness; the system must not silently reduce context, batch size, reasoning, or cache behavior.
 The compatibility manifest records keep-alive `-1`. Controller status/load proof must observe the effective runner configuration and continued loaded state beyond the compatibility set's normal inactivity-eviction window. A missing, rejected, or mismatched keep-alive setting fails `api` readiness; inactivity eviction can never satisfy Stop or normal ready-state semantics.
 
 ## 5. Controller execution and backend alignment
@@ -202,7 +202,7 @@ The repository SHALL contain one immutable release manifest (implementation path
 - source GGUF path, size, SHA-256, OCI reference, and OCI digest;
 - `api`, `web`, `controller`, PostgreSQL, and job image digests and target architectures;
 - controller plugin version/commit and binary SHA-256;
-- Docker Desktop, Docker Engine, Compose, project-built DMR commit/binary SHA-256, llama.cpp commit/binary SHA-256, and PostgreSQL versions;
+- Docker Desktop, Compose, project-built DMR commit/binary SHA-256, llama.cpp commit/binary SHA-256, and PostgreSQL versions;
 - context, batch, temperature, reasoning, and cache settings;
 - per-field resource provenance mapping and the manifest-bound DMR privacy-gate evidence identifier, inspected surfaces, exact build set, and pass result;
 - resolved configuration hash and database migration version;

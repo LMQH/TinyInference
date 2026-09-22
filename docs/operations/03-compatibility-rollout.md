@@ -1,11 +1,10 @@
 # Compatibility identity, rollout, and rollback
 
-## Unresolved-by-design manifest
+## Status
 
-`config/compatibility-manifest.json` is schema-complete but initially `unresolved`. Null empirical fields are not release values. Startup/build configuration fails until Main observes and records them. `config/compatibility-manifest.schema.json` permits null only during resolution; a `verified` release must have no unresolved fields and must carry a passed, matching privacy gate.
+This rollout procedure is effective under ADR-0004 for the current Apple Silicon Mac and host-loopback DMR. It is local identity observation only; it does not authorize deployment or remote change.
 
-The compatibility set is atomic: Docker Desktop, Engine, Compose, project-built DMR commit/binary digest, llama.cpp commit/binary digest, Docker Model plugin commit/binary checksum, PostgreSQL, build bases, application/job images, model OCI digest, tokenizer-metadata artifact, migrations, resolved Compose configuration, settings, and evidence IDs. Changing any member invalidates affected lifecycle, inference, reasoning, tokenizer/context, cache, cancellation, privacy, backup/restore, resources, LAN, and browser evidence.
-
+The compatibility set is atomic: Docker Desktop, Compose, project-built DMR commit/binary digest, llama.cpp commit/binary digest, Docker Model plugin commit/binary checksum, PostgreSQL, build bases, application/job images, model OCI digest, tokenizer-metadata artifact, migrations, resolved Compose configuration, settings, and evidence IDs. Changing any member invalidates affected lifecycle, inference, reasoning, tokenizer/context, cache, cancellation, privacy, backup/restore, resources, LAN, browser, and Metal evidence.
 ## Exact empirical-resolution commands for Main
 
 These are local identity observations only; they do not start application services, push, deploy, or modify a remote environment:

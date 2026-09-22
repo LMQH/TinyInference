@@ -3,7 +3,7 @@
 - **状态：** Implementation-ready
 - **所有者：** 后端开发工程师
 - **实现语言：** Go
-- **权威输入：** `PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`、`docs/adr/0001-system-architecture.md`、`docs/architecture/00-dmr-research.md`、`docs/architecture/01-controller-feasibility.md`
+- **权威输入：** `PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`、`docs/adr/0001-system-architecture.md`、`docs/adr/0002-project-built-compatible-dmr.md`、`docs/adr/0004-restore-mac-deployment-target.md`、`docs/architecture/00-dmr-research.md`、`docs/architecture/01-controller-feasibility.md`
 - **消费者：** `web`、`controller`、受信任 LAN/VPN 内的 OpenAI 客户端、PostgreSQL 运维任务
 
 ## 1. 范围、约束与术语
@@ -319,7 +319,7 @@ backend不自动重试load/unload，避免重复生命周期副作用；status�
 }
 ```
 
-无 active 时为 null。ResourceSnapshot 的 source 枚举全集为 `api_container|dmr_process|project_storage|unavailable`，固定映射为 CPU=`api_container`、统一内存=`dmr_process`、磁盘=`project_storage`、Metal=`dmr_process`；不可用时相关数值必须为 null（Metal 为 unknown）且 source=`unavailable`。`cpu_percent` 仅是 API 容器 CPU；统一内存仅是 DMR 模型进程已用量及可证明的进程/运行时限额；磁盘仅是项目/模型/运行时存储用量及可证明的容量/限额；Metal 仅是 DMR 推理引擎状态。任何 Docker VM 或物理 Mac 总量都不得填入或改名冒充这些字段。任一字段不可用而其余可用时 status=`partial`；样本超过15秒为 stale并保留各字段原 provenance；全部不可用为 unavailable。`failure` 仅失败时非 null。
+无 active 时为 null。ResourceSnapshot 的 source 枚举全集为 `api_container|dmr_process|project_storage|unavailable`，固定映射为 CPU=`api_container`、统一内存=`dmr_process`、磁盘=`project_storage`、Metal=`dmr_process`；不可用时相关数值必须为 null（Metal 为 unknown）且 source=`unavailable`。`cpu_percent` 仅是 API 容器 CPU；统一内存仅是 DMR 模型进程已用量及可证明的进程/运行时限额；磁盘仅是项目/模型/运行时存储用量及可证明限额；Metal 只由 DMR 报告实际启用状态。绝不显示或推断物理 Mac 或 Docker VM 总量。
 
 ### 9.2 历史、指标、告警、日志、运维证据
 
@@ -498,7 +498,7 @@ Prometheus labels 仅 route、method、status class、endpoint、terminal status
 | 场景 | 执行动作与可观察断言 | 追踪 |
 |---|---|---|
 | V-01 双listener冷启动与边界 | Compose冷启动；LAN`:8888`仅三个认证`/v1`路由，逐一请求admin/internal/health/metrics均404；`:8889`只从web应用网络可达并拒绝`/v1`/internal，metrics不经web暴露；确认无socket/LAN DMR/controller/PG端口；snapshot unloaded，推理503且depth0 | REQ-001～004、007、019、034～037；AC-001、002、008、034～037 |
-| V-02 controller lifecycle/authority | 容器内固定CLI status/load/unload；检查模型SHA/ref/Metal；移除MODEL_RUNNER_HOST失败；body/query/路径拒绝；旧/错epoch或holder、stale heartbeat均不spawn；CLI运行中切换leader后旧完成必须indeterminate且不可写success | REQ-003～005、020、021、035；AC-001、003～006、035 |
+| V-02 controller lifecycle/authority | Compose 内部固定 CLI status/load/unload；检查模型 SHA/ref、CUDA backend 与 GPU-layer offload；移除 `MODEL_RUNNER_HOST` 失败；body/query/路径拒绝；旧/错 epoch 或 holder、stale heartbeat 均不 spawn；CLI 运行中切换 leader 后旧完成必须 indeterminate 且不可写 success | REQ-003～005、020、021、035；AC-001、003～006、035 |
 | V-03 公共认证/目录 | 正确Key调用 models；缺失/错误/重复凭据同一401；未知query拒绝 | REQ-007、008；AC-008 |
 | V-04 严格字段矩阵 | 对每个未支持顶层及嵌套字段、错误类型/范围、重复键逐一请求，均400且DMR调用计数不变 | REQ-009；AC-014 |
 | V-05 chat/completion | 两端点分别流/非流真实完成；逐块flush，格式、usage、DONE正确 | REQ-008；AC-009、010 |
@@ -513,7 +513,7 @@ Prometheus labels 仅 route、method、status class、endpoint、terminal status
 | V-14 crash/restart/model operation reconciliation | active请求和running start/stop时分别SIGTERM/SIGKILL；新leader事务只中断严格旧epoch请求及running operations并写两类events+单一snapshot；注入current/future epoch记录必须零修改fail closed；提交后才创建新reconcile_unload，不接受旧完成、不重放 | REQ-022；AC-021 |
 | V-15 DB/fence与陈旧writer | active时断专用PG session；立即readiness false并退出；保留旧pool事务直到新leader递增epoch，再提交必须authority_fence_lost；reconcile拒绝current/future epoch | REQ-014、022、029；AC-016、021、029 |
 | V-16 controller turnover/DMR故障 | 阻塞旧leader CLI，启动新leader请求；验证controller全局串行、spawn前/完成后重验、旧结果不成功、新leader确定性status→unload；再制造CLI timeout、identity mismatch、DMR协议错，均unavailable且无fallback | REQ-020～023、034、035；AC-003、004、021、022、034、035 |
-| V-17 管理契约、资源来源与全局版本 | 浏览器消费snapshot/actions/SSE；验证ETag、Last-Event-ID补发、过期resync、动作冲突；逐字段验证CPU=API容器、内存=DMR进程、磁盘=项目存储、Metal=DMR引擎及unavailable/null规则，绝不显示Mac/VM总量；跨进程/epoch及一次回滚后snapshot_version严格增大且不复用 | REQ-024～027；AC-023～027 |
+| V-17 管理契约、资源来源与全局版本 | 浏览器消费 snapshot/actions/SSE；验证 ETag、Last-Event-ID 补发、过期 resync、动作冲突；逐字段验证 CPU=API 容器、统一内存=DMR 进程、磁盘=项目存储、Metal=DMR 推理引擎及 unavailable/null 规则，绝不显示主机/GPU/VM 总量或虚构 Metal 利用率；跨进程/epoch 及一次回滚后 snapshot_version 严格增大且不复用 | REQ-024～027；AC-023～027 |
 | V-18 指标基线 | 受控真实请求对照DB token/TTFT/duration/throughput与console，记录版本/请求条件，不设阈值 | REQ-026、028、029；AC-026、028、029 |
 | V-19 隐私兼容门与运行证明 | 缺失/篡改request-history证据或改变任一兼容版本，启动readiness必须失败；匹配后用普通/reasoning/tools请求发送唯一canary，重启runner，再扫描DMR/controller/api日志、可见history、持久存储、DB、backup/恢复库和metrics labels，均不得含canary；不以不存在的disable设置充当证据 | REQ-030；AC-030、033 |
 | V-20 聚合/retention调度 | 构造漏跑小时、重启和并发scheduler；仅持job lock者执行，按小时幂等补齐且不重复；受控UTC数据置于恰好30天和早1ns，仅严格过期删除；批次中断后按watermark续跑且先聚合后删除 | REQ-026、028、031；AC-026、028、031 |
