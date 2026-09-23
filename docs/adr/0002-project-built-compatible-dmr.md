@@ -24,7 +24,7 @@ The runtime is fail-closed:
 1. `ops/runtime/start.sh` verifies the approved GGUF, build manifest, DMR binary, and llama.cpp binary before startup.
 2. An existing listener is accepted only when its PID file identifies a live process whose command is the exact managed DMR executable and fixed arguments. An arbitrary responder on port `12435` is rejected.
 3. The live identity endpoint hashes the executing DMR and configured llama.cpp binaries and returns the sole packaged model digest.
-4. API readiness parses the complete seven-artifact `privacy_gate.exact_build_set`, binds application image digests to the compatibility manifest, and compares the live DMR, llama.cpp, and model identities. Missing, malformed, duplicate, or mismatched identity blocks startup.
+4. API readiness parses the complete seven-artifact `privacy_gate.exact_build_set`, binds application image digests to the compatibility manifest, and compares the live DMR, llama.cpp, and model identities. Missing, malformed, duplicate, or mismatched identity blocks startup. ADR-0006 permits a locally isolated candidate to start before privacy evidence exists; production still requires completed privacy evidence.
 5. DMR remains loopback-only. Compose containers reach it through `model-runner.docker.internal:12435`; the port is never published or proxied to the LAN.
 6. Lifecycle status/load/unload still cross only the fixed controller contract and pinned Docker Model CLI. Application code does not call undocumented lifecycle HTTP routes.
 
@@ -33,7 +33,7 @@ Resource totals that cannot be attributed to the DMR process or project-managed 
 ## Consequences
 
 - The exact DMR and llama.cpp commits and binary SHA-256 values become compatibility-manifest identities and require revalidation after any rebuild.
-- Runtime build and startup are currently Darwin ARM64-specific. Future Linux support remains unauthorized and requires a separately verified host-runtime implementation while preserving the same application contracts.
+- Runtime build and startup are Darwin ARM64-specific for the approved Apple Silicon Mac.
 - A local operator with permission to replace project artifacts remains inside the accepted host trust boundary. Network clients and application containers gain no new authority.
 - Docker Desktop remains the container engine for the Compose application, but its bundled DMR is not part of the accepted inference compatibility set.
 - Loss of the identity endpoint, PID ownership, exact artifact match, controller observation, or privacy evidence makes the API unavailable rather than selecting a fallback.

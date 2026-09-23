@@ -3,7 +3,7 @@
 - **状态：** Implementation-ready
 - **所有者：** 后端开发工程师
 - **实现语言：** Go
-- **权威输入：** `PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`、`docs/adr/0001-system-architecture.md`、`docs/adr/0002-project-built-compatible-dmr.md`、`docs/adr/0004-restore-mac-deployment-target.md`、`docs/architecture/00-dmr-research.md`、`docs/architecture/01-controller-feasibility.md`
+- **权威输入：** `PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`、`docs/adr/0001-system-architecture.md`、`docs/adr/0002-project-built-compatible-dmr.md`、`docs/adr/0003-apple-silicon-mac-and-ios-client-target.md`、`docs/architecture/00-dmr-research.md`、`docs/architecture/01-controller-feasibility.md`
 - **消费者：** `web`、`controller`、受信任 LAN/VPN 内的 OpenAI 客户端、PostgreSQL 运维任务
 
 ## 1. 范围、约束与术语
@@ -34,15 +34,17 @@
 
 ### 2.2 三种模型身份
 
-- 公共稳定 ID：`openbmb/MiniCPM5-2B-Q4_K_M`。
+- 公共默认 ID：`openbmb/MiniCPM5-2B-Q4_K_M`；运行时当前对外名称按 [模型名映射规格](model-name-mapping.md) 从 PostgreSQL 读取。
 - DMR/Compose 身份：环境变量 `AI_MODEL_NAME`，实现时必须等于版本清单中的 `local/minicpm5-2b:q4_k_m-ec2d58016400`。
 - 不可变源身份：路径 `models/openbmb/MiniCPM5-2B-GGUF/MiniCPM5-2B-Q4_K_M.gguf`，SHA-256 `ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd`。
 
-公共请求只能使用公共稳定 ID；不得把内部 OCI ref、文件路径或 DMR URL泄露给客户端。启动时 `api` 必须比对自身配置、controller 报告的 `model_ref/source_sha256` 和版本清单；任何不一致使模型状态为 `unavailable`。
+公共请求只能使用当前对外名称；不得把内部 OCI ref、文件路径或 DMR URL泄露给客户端。启动时 `api` 必须比对自身配置、controller 报告的 `model_ref/source_sha256` 和版本清单；任何不一致使模型状态为 `unavailable`。
 
 **追踪：** REQ-P0-004、007、034～037；AC-005、008、034～037；ADR 3.3、3.5、3.8、3.11。
 
 ## 3. 公共 OpenAI 文本子集
+
+本节 JSON 示例使用初始对外名称；控制台修改后，目录、请求校验及响应中的 `model` 都使用当前名称。已准入请求的响应保留其准入时名称。
 
 ### 3.1 通用解析与拒绝规则
 
@@ -54,7 +56,7 @@
 
 | 字段 | 类型/范围 | 默认 | 端点 |
 |---|---|---|---|
-| `model` | 必填字符串；只能是公共稳定 ID | 无 | chat、completions |
+| `model` | 必填字符串；只能是当前对外名称 | 无 | chat、completions |
 | `stream` | boolean | `false` | chat、completions |
 | `max_tokens` | integer，1～131072 | `2048` | chat、completions |
 | `temperature` | number，0～2 | `0.8` | chat、completions |
@@ -74,7 +76,7 @@
 {"object":"list","data":[{"id":"openbmb/MiniCPM5-2B-Q4_K_M","object":"model","created":0,"owned_by":"openbmb"}]}
 ```
 
-模型产品状态非 `ready` 时仍返回目录；目录表示契约中存在的模型，不表示当前可推理。可推理性由提交请求的 503 和管理快照表达。
+示例展示初始名称；控制台修改后，目录中的 `id` 改为当前名称，且仍只有一个模型。模型产品状态非 `ready` 时仍返回目录；目录表示契约中存在的模型，不表示当前可推理。可推理性由提交请求的 503 和管理快照表达。
 
 ### 3.3 `POST /v1/chat/completions`
 
@@ -229,7 +231,7 @@ DMR兼容性配置必须把自动 inactivity eviction 的 keep-alive 固定为 `
 
 ### 7.1 翻译
 
-`api` 将公共稳定 model 改写为 `AI_MODEL_NAME`，将已验证字段一对一传给 `AI_MODEL_URL` 下的 `/engines/v1/chat/completions` 或 `/engines/v1/completions`；不转发认证头、request ID 以外的客户端头或未知字段。内部请求总 deadline 为 active 开始后 30 分钟；客户端取消、Stop、shutdown 使用同一个 Go context 向下游传播。
+`api` 将当前对外 model 改写为 `AI_MODEL_NAME`，将已验证字段一对一传给 `AI_MODEL_URL` 下的 `/engines/v1/chat/completions` 或 `/engines/v1/completions`；不转发认证头、request ID 以外的客户端头或未知字段。内部请求总 deadline 为 active 开始后 30 分钟；客户端取消、Stop、shutdown 使用同一个 Go context 向下游传播。
 
 Compose/DMR 固定最大 context 131072、逻辑 batch size 2048、默认 temperature 0.8。请求显式 temperature 覆盖仅该请求。`reasoning=true` 翻译为兼容性清单验证过的每请求 `reasoning_budget=-1`（启用模型默认预算），`reasoning=false` 翻译为 `reasoning_budget=0`；该内部字段不直接接受客户端数值。实现验收必须证明钉住的 DMR/llama.cpp 组合尊重此字段且后续请求恢复默认。若被拒绝、忽略或无法把推理与 final 分离，兼容性集合不合格，服务保持 unavailable；不得用提示词改写、输出删除或模型重载伪造“关闭推理”。
 
@@ -482,7 +484,7 @@ Prometheus labels 仅 route、method、status class、endpoint、terminal status
 ## 13. 交付顺序与兼容性
 
 1. DevOps先提供固定版本清单、内部网络、PostgreSQL migration job、controller镜像和上述 env；不得发布 DMR/controller/PG LAN端口或 socket mount。
-2. 执行五个数据库迁移；再启动单个 `api`。
+2. 执行六个数据库迁移；再启动单个 `api`。
 3. `api` 获 fence、reconcile、显式 unload 后仅开放管理面；Start真实通过后开放推理。
 4. `web` 仅使用第9节契约；字段/枚举改变必须先兼容生产者和消费者，不得由前端定义替代类型。
 5. 兼容性集合任一 Docker Desktop/DMR/plugin/engine/model变化，都重跑 lifecycle、reasoning、tokenizer、stream cancellation、privacy验证。

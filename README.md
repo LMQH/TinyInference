@@ -64,7 +64,17 @@ make stop    # 优雅停止服务并卸载运行时
 
 ## 调用 API
 
-将下列地址替换为实际私有网络地址。认证密钥由运行时密钥文件提供；当前 MVP 的已批准值为 `888888`，仅适用于受信任私网。
+模型在运维控制台显示“就绪”后，客户端按 OpenAI 兼容服务配置连接：
+
+| 配置项 | 值 |
+| --- | --- |
+| Base URL | `http://${LAN_BIND_ADDRESS}:8888/v1` |
+| API Key | `888888` |
+| 模型名 | 以 `GET /v1/models` 返回的 `data[0].id` 为准；初始值为 `openbmb/MiniCPM5-2B-Q4_K_M` |
+
+把 `${LAN_BIND_ADDRESS}` 替换为运行服务的 Mac 在受信任 LAN/VPN 上的实际 IP 地址（例如 `192.168.1.20`）；客户端必须能访问该地址。API Key 通过运行时密钥文件提供，当前 MVP 固定为 `888888`，仅适用于受信任私网。连接时使用 Bearer 鉴权；OpenAI SDK 通常分别将以上值填入 `base_url` 和 `api_key`。
+
+可在控制台“运行总览 → 模型控制”修改对外模型名。保存后，新请求只接受新名称，旧名称立即失效；底层仍是同一个模型。下面的聊天示例使用初始名称，若已修改，请将 `model` 换成 `/v1/models` 返回的当前名称。
 
 查询模型：
 
@@ -98,7 +108,9 @@ API 仅承诺上述三个文本端点及其已批准参数。未知或不支持�
 ## 文档索引
 
 - [产品需求](docs/product/01-prd.md)
+- [模型名映射需求](docs/product/02-model-name-mapping.md)
 - [系统架构决策](docs/adr/0001-system-architecture.md)
+- [对外模型名映射决策](docs/adr/0005-public-model-name-mapping.md)
 - [后端技术规格](docs/technical/backend.md)
 - [前端技术规格](docs/technical/frontend.md)
 - [运维技术规格](docs/technical/operations.md)

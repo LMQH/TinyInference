@@ -1,0 +1,18 @@
+# Technical specification: isolated candidate verification
+
+This implements [ADR-0006](../adr/0006-isolated-candidate-verification.md) for the model-name mapping release.
+
+## Manifest and startup states
+
+- `unresolved` never starts the API. `verified` requires the existing complete privacy/evidence gate and the production target environment. `candidate` requires an explicit candidate-mode environment value, candidate target environment, unresolved privacy evidence, and a complete seven-artifact exact-build set. The exact-build set and live DMR identity checks run in both startable states. A candidate manifest cannot satisfy the production startup branch.
+- A candidate manifest and environment file live under ignored `var/artifacts/candidate/`. The tracked production manifest remains `unresolved` until the exact release evidence is approved. Candidate and production configuration hashes are separate and bind their respective Compose renderings.
+- The candidate preparation command compares every recorded image ID with locally present Docker images, verifies the packaged model and live DMR identity, and inspects the resolved topology before any service is started. It rejects non-loopback published ports, a second model/runtime, production database/backup volumes, Docker socket mounts, extra API replicas, and unexpected services.
+
+## Isolation and operation
+
+- The candidate Compose project has its own PostgreSQL data volume and private networks. API and web are published only on `127.0.0.1` at separate candidate ports. Candidate backups use a separate repository-local directory. The admin and controller ports remain internal; DMR remains on host loopback.
+- Before pausing the existing web/API/controller, record their container and image IDs, require an empty queue and unloaded model, and perform a short pause/unpause recovery rehearsal. If that fails, leave them running and report the gate. Pause them again before the candidate controller starts; its startup requires a regular guard file containing the candidate manifest hash, mounted only by the isolated Compose override. Direct candidate Compose startup without that guard fails closed. Start candidate PostgreSQL, run migration 7 against only its disposable database, then start backup scheduler, controller, API, and web. On failure, stop the candidate stack before unpausing the prior deployment; never overwrite live data.
+- Candidate evidence uses the candidate browser and API loopback ports, the approved DMR, and the same image IDs intended for release. Record content-safe evidence IDs and measured latency. The privacy proof inspects candidate application logs, DMR history/logs, project files, browser storage, and isolated backup/restore across required timepoints.
+- The candidate window is a single-operator procedure: do not externally unpause the recorded production containers or run production `compose up` while the candidate is active. Check their paused state and exact container/image IDs with `python3 ops/candidate/check.py` before each QA phase and again during candidate shutdown. The controller's static startup guard alone is not a cross-project lock.
+- Promote only after the required QA and independent reviews accept the candidate. Promotion records exact evidence in the production manifest, verifies identity and topology again, then follows the ordinary live backup, migration, and rollout procedure. No live-data restore occurs without separate authorization.
+- Candidate restore uses its own project and backup path. Compare the restored public model name with the candidate source name through read-only queries; do not invoke the production `make restore-record` target against a candidate database.

@@ -15,13 +15,13 @@
 
 ## 1. Context
 
-Mini-Inference is a private-LAN/VPN, single-model inference appliance. The approved product requires an authenticated OpenAI-compatible text API, an unauthenticated Simplified Chinese operations console, exactly one active inference request, a bounded FIFO wait queue, explicit model lifecycle control, PostgreSQL-backed metadata retention, and Docker Model Runner (DMR) using llama.cpp. Application services run through one Docker Compose design; the current Apple Silicon Mac is the MVP verification environment, while a future private Linux server must remain possible without creating a second product architecture.
+Mini-Inference is a private-LAN/VPN, single-model inference appliance. The approved product requires an authenticated OpenAI-compatible text API, an unauthenticated Simplified Chinese operations console, exactly one active inference request, a bounded FIFO wait queue, explicit model lifecycle control, PostgreSQL-backed metadata retention, and Docker Model Runner (DMR) using llama.cpp. Application services run through one Docker Compose design on the current Apple Silicon Mac; iOS is an authenticated API-client platform.
 
 The system must preserve strict data minimization: prompt, response, reasoning, and tool-argument bodies are transient and must not be persisted or logged. DMR is unauthenticated and must remain inaccessible to LAN clients. Lifecycle control is isolated in a dedicated controller exposing only fixed capabilities; the selected design does not mount the Docker Engine socket.
 
 DMR research establishes a material lifecycle constraint: supported explicit load, status, and unload operations are Docker Model CLI operations. Explicit unload is not part of the documented DMR HTTP lifecycle surface. An observed internal unload HTTP route is undocumented, globally scoped, and unsuitable as a durable contract.
 
-This ADR decides the runtime class, backend language, durable component and trust boundaries, queue consistency class, persistence class, DMR integration boundary, portability and pinning posture, and fail-closed consequences. It does not redefine any product behavior.
+This ADR decides the runtime class, backend language, durable component and trust boundaries, queue consistency class, persistence class, DMR integration boundary, target-platform and pinning posture, and fail-closed consequences. It does not redefine any product behavior.
 
 ## 2. Approved product facts preserved
 
@@ -30,7 +30,7 @@ This decision preserves the following approved facts without modification:
 - The appliance is limited to a trusted private LAN or VPN and has no public-internet exposure.
 - The existing MiniCPM5-2B GGUF is the only model and is immutable input.
 - DMR with llama.cpp is the only inference runtime; Metal is used on the MVP Mac.
-- Application services run through Docker Compose. The same Compose design must remain usable for a future private Linux server, although Linux deployment is not part of MVP acceptance.
+- Application services run through Docker Compose on the approved Apple Silicon Mac.
 - The stable product surface is the PRD-defined OpenAI-compatible text subset on LAN port `8888`, protected by the approved fixed Bearer key.
 - The Simplified Chinese operations console has no login. Any private-network visitor may perform the lifecycle and queue operations approved by the PRD.
 - At most one inference request may reach the model at once. Up to 20 additional requests wait in FIFO order for at most 30 minutes.
@@ -69,7 +69,7 @@ Go is selected over Python for this appliance because:
 - context cancellation composes across client disconnects, queue cancellation, Stop, downstream DMR requests, and shutdown;
 - content-free operational metrics and structured telemetry can be collected with low per-request overhead;
 - a compiled service can be delivered as a small, predictable container artifact without a mutable language runtime or virtual environment;
-- the same service source and container build model are practical on Apple Silicon and Linux architectures.
+- the service can be delivered reproducibly as Linux ARM64 containers under Docker Desktop on the approved Apple Silicon Mac.
 
 This is a language and runtime-class decision, not a library decision. Frameworks, packages, build layout, concrete concurrency primitives, and implementation algorithms remain Tech Spec choices. The Tech Spec MUST preserve streaming backpressure and cancellation propagation rather than buffering complete streamed bodies.
 
@@ -211,22 +211,18 @@ Every telemetry and failure path—including DMR diagnostics, reverse-proxy acce
 
 Loss of PostgreSQL or loss of the exclusive authority fence SHALL prevent new inference and lifecycle admission. This availability cost is accepted to avoid successful work without durable metadata or multiple simultaneous queue authorities.
 
-### 3.10 Portability posture
+### 3.10 Target-platform posture
 
-The project SHALL maintain one logical Compose topology and the same component boundaries on the MVP Mac and a future private Linux server. Portability means preserving contracts and topology, not pretending host runtimes are identical.
-
-Host variation is confined to documented integration seams for:
+The project SHALL maintain one logical Compose topology on the approved Apple Silicon Mac. Platform-specific integration is confined to documented seams for:
 
 - the internal DMR endpoint supplied by the platform;
 - the supported Docker Model CLI/runner integration used by the controller;
 - read-only application, DMR-process, and project/runtime storage measurements needed for approved console metrics;
-- architecture-specific immutable container artifacts.
+- immutable container artifacts.
 
 Physical-host and Docker-VM totals are outside the approved metric contract and MUST NOT be inferred, relabeled, or implemented through host helpers.
 
-The backend’s public behavior, queue semantics, trust boundaries, persistence semantics, and DMR non-exposure invariant MUST NOT vary by host OS. Host detection MUST NOT select an undocumented lifecycle fallback. A platform on which the required supported integration cannot be proven is unsupported until separately designed and verified.
-
-Future Linux deployment and acceptance remain out of MVP scope. Portability work in the MVP is limited to avoiding a second Compose architecture and keeping the seams above explicit.
+The backend’s public behavior, queue semantics, trust boundaries, persistence semantics, and DMR non-exposure invariant are fixed for the Mac target. Host detection MUST NOT select an undocumented lifecycle fallback. Any additional service-host platform is unsupported until separately authorized, designed, and verified.
 
 ### 3.11 Version and pinning posture
 
@@ -236,8 +232,7 @@ Docker Desktop DMR bundles its llama.cpp engine and does not currently provide a
 
 - record the verified Docker Desktop, Compose, DMR, Docker Model plugin, and reported inference-engine versions as a compatibility set;
 - constrain operation to a verified compatibility set rather than claim an unavailable independent llama.cpp pin;
-- treat upgrades to any member of that set as requiring renewed lifecycle, inference, cancellation, privacy, and portability evidence before adoption;
-- pin the Linux runner version when future Linux deployment is separately authorized.
+- treat upgrades to any member of that set as requiring renewed lifecycle, inference, cancellation, privacy, and network-boundary evidence before adoption.
 
 A recorded version is evidence, not a substitute for runtime verification.
 
@@ -301,7 +296,7 @@ Rejected under the current architecture because application services must run th
 - The controller isolates DMR lifecycle authority from LAN ingress and inference content without mounting the Docker Engine socket.
 - DMR remains replaceable only through a future architecture decision rather than leaking runtime-specific behavior into clients.
 - Explicit compatibility-set recording is honest about Docker Desktop’s bundled engine while retaining reproducibility evidence.
-- One Compose topology preserves the approved Mac-to-Linux portability posture without claiming unverified Linux support.
+- One Compose topology keeps the approved Mac deployment auditable and reproducible.
 
 ### Negative and accepted tradeoffs
 
@@ -327,7 +322,7 @@ The Tech Spec SHALL define, without changing this ADR or the PRD:
 - DMR request translation and supported-parameter enforcement;
 - exact controller image, pinned CLI/plugin compatibility, explicit `MODEL_RUNNER_HOST`, no-socket network topology, and the mandatory in-container lifecycle proof;
 - readiness semantics that fail closed when PostgreSQL fencing, DMR state, or controller state is unavailable;
-- application/DMR/project resource metric adapters with explicit provenance for the verified Mac and the future Linux seam, without a physical-host helper;
+- application/DMR/project resource metric adapters with explicit provenance for the verified Mac, without a physical-host helper;
 - immutable version manifest and upgrade revalidation procedure;
 - verification scenarios for all PRD acceptance criteria and every fail-closed gate in this ADR.
 
@@ -335,6 +330,6 @@ Concrete database tables or fields, endpoint payload fields, error codes not alr
 
 ## 7. Compliance with authorization
 
-This ADR is **Effective**, not Draft, because the product owner explicitly authorized the architect to select Go or Python, component boundaries, implementation contracts, queue and persistence classes, trust boundaries, portability invariants, and the DMR lifecycle posture within the approved product facts. It changes no product behavior and authorizes no public exposure, deployment, secret access, commit, or infrastructure operation.
+This ADR is **Effective**, not Draft, because the product owner explicitly authorized the architect to select Go or Python, component boundaries, implementation contracts, queue and persistence classes, trust boundaries, target-platform invariants, and the DMR lifecycle posture within the approved product facts. It changes no product behavior and authorizes no public exposure, deployment, secret access, commit, or infrastructure operation.
 
 No architecture decision remains unresolved. The controller’s in-container Docker Model CLI execution is a mandatory feasibility and acceptance gate, not an undecided fallback: failure blocks lifecycle acceptance and requires a newly authorized ADR rather than weakening Stop semantics.

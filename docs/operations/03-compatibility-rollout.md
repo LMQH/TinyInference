@@ -2,7 +2,7 @@
 
 ## Status
 
-This rollout procedure is effective under ADR-0004 for the current Apple Silicon Mac and host-loopback DMR. It is local identity observation only; it does not authorize deployment or remote change.
+This rollout procedure is effective under ADR-0003 for the current Apple Silicon Mac and host-loopback DMR. It is local identity observation only; it does not authorize deployment or remote change.
 
 The compatibility set is atomic: Docker Desktop, Compose, project-built DMR commit/binary digest, llama.cpp commit/binary digest, Docker Model plugin commit/binary checksum, PostgreSQL, build bases, application/job images, model OCI digest, tokenizer-metadata artifact, migrations, resolved Compose configuration, settings, and evidence IDs. Changing any member invalidates affected lifecycle, inference, reasoning, tokenizer/context, cache, cancellation, privacy, backup/restore, resources, LAN, browser, and Metal evidence.
 ## Exact empirical-resolution commands for Main
@@ -69,6 +69,20 @@ make render
 ```
 
 The resolved-config hash excludes only the resolved-config and compatibility-manifest digest carrier fields, avoiding their mutual circular digest while hashing every operational setting. The final resolved YAML is stored under `var/artifacts/compose.resolved.yaml`; it contains secret file paths, never secret values.
+
+## Isolated candidate verification
+
+When a new image has no release evidence yet, keep the tracked production manifest `unresolved`. ADR-0006 permits a loopback-only candidate with a separate database and backups:
+
+```sh
+python3 ops/candidate/prepare.py
+python3 ops/candidate/start.py
+python3 ops/candidate/check.py
+# Run the required candidate QA and evidence collection.
+python3 ops/candidate/stop.py
+```
+
+`start.py` requires an idle previous deployment and unloaded DMR, rehearses exact-container recovery, then pauses its web/API/controller before starting the candidate. While the candidate runs, a single operator must not externally unpause those containers or start production Compose. `check.py` confirms their paused identities before each QA phase. `stop.py` unloads and stops the candidate before restoring the prior deployment. Candidate API and console bind only to `127.0.0.1:18888` and `127.0.0.1:18080`. A candidate result alone does not promote the production manifest; the exact-build privacy, browser, and independent review gates still apply.
 
 ## Release and rollback gates
 

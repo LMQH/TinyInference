@@ -4,6 +4,7 @@ import {
   decodeLogs,
   decodeMetrics,
   decodeModelAction,
+  decodeModelNameSaved,
   decodeOperations,
   decodeRequestPage,
   decodeSnapshot,
@@ -49,5 +50,6 @@ export const adminApi = {
   operations: (signal?: AbortSignal) => requestJson('/admin/v1/operations', { decode: decodeOperations, signal }),
   startModel: (signal?: AbortSignal) => requestJson('/admin/v1/model/start', { method: 'POST', decode: decodeModelAction, signal, conditional: false }),
   stopModel: (signal?: AbortSignal) => requestJson('/admin/v1/model/stop', { method: 'POST', decode: decodeModelAction, signal, conditional: false }),
+  setModelName: (publicModelId: string, expectedPublicModelId: string, signal?: AbortSignal) => requestJson('/admin/v1/model/name', { method: 'POST', body: { public_model_id: publicModelId, expected_public_model_id: expectedPublicModelId }, decode: decodeModelNameSaved, signal, conditional: false }),
   cancelWaiting: (requestId: string, signal?: AbortSignal) => requestJson(`/admin/v1/queue/${encodeURIComponent(requestId)}/cancel`, { method: 'POST', decode: decodeCancel, signal, conditional: false }),
 };

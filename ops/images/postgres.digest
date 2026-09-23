@@ -1,1 +1,1 @@
-{"status":"unresolved","image":"docker.io/library/postgres","version":null,"platform":"linux/arm64","digest":null}
+{"status":"resolved","image":"docker.io/library/postgres","version":"17.4","platform":"linux/arm64","digest":"sha256:7062a2109c4b51f3c792c7ea01e83ed12ef9a980886e3b3d380a7d2e5f6ce3f5"}

@@ -1,5 +1,5 @@
 openapi: 3.1.0
-info: {title: Mini-Inference Admin API, version: 1.0.0}
+info: {title: Mini-Inference Admin API, version: 1.1.0}
 servers: [{url: 'http://api:8889'}]
 paths:
   /admin/v1/snapshot:
@@ -44,6 +44,11 @@ paths:
     post: {operationId: startModel, responses: {'202': {description: Accepted, content: {application/json: {schema: {$ref: '#/components/schemas/ModelActionAccepted'}}}}, default: {$ref: '#/components/responses/Error'}}}
   /admin/v1/model/stop:
     post: {operationId: stopModel, responses: {'202': {description: Accepted, content: {application/json: {schema: {$ref: '#/components/schemas/ModelActionAccepted'}}}}, default: {$ref: '#/components/responses/Error'}}}
+  /admin/v1/model/name:
+    post:
+      operationId: setPublicModelName
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ModelNameChange'}}}}
+      responses: {'200': {description: Saved public model name, content: {application/json: {schema: {$ref: '#/components/schemas/ModelNameSaved'}}}}, default: {$ref: '#/components/responses/Error'}}
   /admin/v1/queue/{request_id}/cancel:
     post:
       operationId: cancelWaiting
@@ -83,7 +88,10 @@ components:
         active_alert_count: {type: integer, minimum: 0}
     ServiceSnapshot: {type: object, additionalProperties: false, required: [state, ready, authority_epoch, reason_code], properties: {state: {enum: [starting, ready, degraded, stopping]}, ready: {type: boolean}, authority_epoch: {type: integer, format: int64}, reason_code: {type: [string, 'null']}}}
     ModelFailure: {type: object, additionalProperties: false, required: [code, message, retryable], properties: {code: {type: string}, message: {type: string}, retryable: {type: boolean}}}
-    ModelSnapshot: {type: object, additionalProperties: false, required: [state, transition_started_at, operation_id, failure], properties: {state: {enum: [unloaded, starting, ready, stopping, unavailable]}, transition_started_at: {type: string, format: date-time}, operation_id: {type: [string, 'null'], format: uuid}, failure: {oneOf: [{$ref: '#/components/schemas/ModelFailure'}, {type: 'null'}]}}}
+    ModelSnapshot: {type: object, additionalProperties: false, required: [state, transition_started_at, operation_id, failure, public_model_id, default_public_model_id], properties: {state: {enum: [unloaded, starting, ready, stopping, unavailable]}, transition_started_at: {type: string, format: date-time}, operation_id: {type: [string, 'null'], format: uuid}, failure: {oneOf: [{$ref: '#/components/schemas/ModelFailure'}, {type: 'null'}]}, public_model_id: {$ref: '#/components/schemas/PublicModelName'}, default_public_model_id: {const: openbmb/MiniCPM5-2B-Q4_K_M}}}
+    PublicModelName: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$', maxLength: 128}
+    ModelNameChange: {type: object, additionalProperties: false, required: [public_model_id, expected_public_model_id], properties: {public_model_id: {$ref: '#/components/schemas/PublicModelName'}, expected_public_model_id: {$ref: '#/components/schemas/PublicModelName'}}}
+    ModelNameSaved: {type: object, additionalProperties: false, required: [public_model_id, snapshot_version], properties: {public_model_id: {$ref: '#/components/schemas/PublicModelName'}, snapshot_version: {type: integer, format: int64}}}
     ActiveRequest: {type: object, additionalProperties: false, required: [id, status, endpoint, stream, reasoning_enabled, enqueued_at, started_at], properties: {id: {type: string, format: uuid}, status: {const: active}, endpoint: {enum: [chat.completions, completions]}, stream: {type: boolean}, reasoning_enabled: {type: boolean}, enqueued_at: {type: string, format: date-time}, started_at: {type: string, format: date-time}}}
     WaitingRequest: {type: object, additionalProperties: false, required: [id, status, endpoint, stream, reasoning_enabled, position, enqueued_at, deadline_at, can_cancel], properties: {id: {type: string, format: uuid}, status: {const: waiting}, endpoint: {enum: [chat.completions, completions]}, stream: {type: boolean}, reasoning_enabled: {type: boolean}, position: {type: integer, minimum: 1}, enqueued_at: {type: string, format: date-time}, deadline_at: {type: string, format: date-time}, can_cancel: {type: boolean}}}
     QueueSnapshot: {type: object, additionalProperties: false, required: [capacity, depth, active, waiting], properties: {capacity: {const: 20}, depth: {type: integer, minimum: 0, maximum: 20}, active: {oneOf: [{$ref: '#/components/schemas/ActiveRequest'}, {type: 'null'}]}, waiting: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/WaitingRequest'}}}}

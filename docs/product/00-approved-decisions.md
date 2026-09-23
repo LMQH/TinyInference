@@ -2,7 +2,7 @@
 
 Status: Approved
 Owner: Product owner (user)
-Approval date: 2026-09-21 (updated by product owner deployment authorization)
+Approval date: 2026-09-23 (updated by product owner target-platform authorization)
 
 ## Product
 
@@ -33,6 +33,7 @@ Mini-Inference is a private-network/VPN appliance that serves the existing MiniC
 
 - LAN-facing inference port: 8888.
 - Authentication: Bearer API key `888888`.
+- The single public model name can be replaced in the private-network console; after save, new requests accept only the replacement name. The fixed DMR model identity does not change.
 - Stable OpenAI-compatible text subset:
   - `GET /v1/models`
   - `POST /v1/chat/completions`
@@ -90,7 +91,7 @@ Mini-Inference is a private-network/VPN appliance that serves the existing MiniC
 - Prompt or response history.
 - Persistent KV cache across model unload or platform restart.
 - Exact real-time Metal GPU utilization.
-- Linux server deployment, compute-appliance deployment, and iOS local inference/server deployment in the MVP.
+- iOS local inference or server deployment in the MVP; iOS is an API client only.
 
 ## Acceptance evidence
 

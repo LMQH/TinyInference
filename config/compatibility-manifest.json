@@ -1,9 +1,9 @@
 {
   "manifest_version": 1,
   "release": {
-    "status": "verified",
+    "status": "unresolved",
     "version": "mvp",
-    "created_at": "2026-09-20T21:28:19Z",
+    "created_at": null,
     "target_environment": "apple-silicon-mac-private-lan",
     "target_architecture": "linux/arm64"
   },
@@ -22,23 +22,23 @@
   },
   "images": {
     "api": {
-      "reference": "sha256:34835c2c3665475e12a7378ed7b8b2099f576e3e52c35b03654480b3c09485dc",
-      "digest": "sha256:34835c2c3665475e12a7378ed7b8b2099f576e3e52c35b03654480b3c09485dc",
+      "reference": "sha256:72fb8a125ca845e815c17d63256e10f75b52d641cc3ab222d4ebdc56283dbae6",
+      "digest": "sha256:72fb8a125ca845e815c17d63256e10f75b52d641cc3ab222d4ebdc56283dbae6",
       "architecture": "linux/arm64"
     },
     "web": {
-      "reference": "sha256:2dc0b3e7793b749e00757a40daae5fd993540333ab14126aee62aa36b274161c",
-      "digest": "sha256:2dc0b3e7793b749e00757a40daae5fd993540333ab14126aee62aa36b274161c",
+      "reference": "sha256:7ae042580918aacf7998d8e6c520f9c36e52ddc45f6cdac18275310e99e90cd6",
+      "digest": "sha256:7ae042580918aacf7998d8e6c520f9c36e52ddc45f6cdac18275310e99e90cd6",
       "architecture": "linux/arm64"
     },
     "controller": {
-      "reference": "sha256:f6ca697747002f6d09e984b26ee3ed514f0cc48fb70236520fe744fd6069f2c5",
-      "digest": "sha256:f6ca697747002f6d09e984b26ee3ed514f0cc48fb70236520fe744fd6069f2c5",
+      "reference": "sha256:cdb96fcfbb827c02f25bf316eb26860bf91223dec0f7a078547573827495f2df",
+      "digest": "sha256:cdb96fcfbb827c02f25bf316eb26860bf91223dec0f7a078547573827495f2df",
       "architecture": "linux/arm64"
     },
     "jobs": {
-      "reference": "sha256:846b49f5617f19f62a2eb11c14ad117065d6f0388bb3cc83538e6b5b99da21c7",
-      "digest": "sha256:846b49f5617f19f62a2eb11c14ad117065d6f0388bb3cc83538e6b5b99da21c7",
+      "reference": "sha256:58214a7a7d833bb8e71fe1dc14b3f74f7b9d38dd23a69d411b7b3b198162a30a",
+      "digest": "sha256:58214a7a7d833bb8e71fe1dc14b3f74f7b9d38dd23a69d411b7b3b198162a30a",
       "architecture": "linux/arm64"
     },
     "postgres": {
@@ -90,13 +90,13 @@
     "metal": "dmr_process"
   },
   "database": {
-    "migration_version": 6
+    "migration_version": 7
   },
-  "resolved_compose_config_sha256": "634838d4203de18274d1fc3203b1709d75f802ac269e6f190053d154e8e4c78e",
+  "resolved_compose_config_sha256": "c6e9527644a77d7a5f061ecfe064bee9e6edcba26130d8ba28ed0d2716691dbe",
   "privacy_gate": {
-    "status": "passed",
-    "evidence_id": "privacy-20260920T212819Z-live-identity",
-    "exact_build_set": "model:f9a8b75d13bc73edef8e6e57de5eae43b56208d689a3f0d1a8a6d0cc99ad0045;api:34835c2c3665475e12a7378ed7b8b2099f576e3e52c35b03654480b3c09485dc;web:2dc0b3e7793b749e00757a40daae5fd993540333ab14126aee62aa36b274161c;controller:f6ca697747002f6d09e984b26ee3ed514f0cc48fb70236520fe744fd6069f2c5;jobs:846b49f5617f19f62a2eb11c14ad117065d6f0388bb3cc83538e6b5b99da21c7;dmr:3a46f98d0f520f80e52ffa4b8b44d00f2f6ba55a431c280e2e911f718f5a2a93;llama:5c809b3524b3bf1f58c949f0701e40c7c09de5de52d16240a482f4ecd8dd7978",
+    "status": "unresolved",
+    "evidence_id": null,
+    "exact_build_set": null,
     "inspected_surfaces": [
       "application_logs",
       "dmr_request_history",
@@ -110,15 +110,23 @@
       "immediately_after",
       "after_runner_restart"
     ],
-    "passed": true
+    "passed": false
   },
   "evidence": {
-    "lifecycle": "lifecycle-20260920T212240Z-live-identity",
-    "inference": "inference-20260920T212530Z-reasoning-usage",
-    "privacy": "privacy-20260920T212819Z-live-identity",
-    "backup_restore": "backup-restore-20260920T212950Z-isolated",
-    "browser": "browser-20260920T213052Z-console",
-    "portability": "lan-boundary-20260920T213052Z-private-only"
+    "lifecycle": null,
+    "inference": null,
+    "privacy": null,
+    "backup_restore": null,
+    "browser": null,
+    "network_boundary": null
   },
-  "unresolved_fields": []
+  "unresolved_fields": [
+    "privacy_gate",
+    "evidence.lifecycle",
+    "evidence.inference",
+    "evidence.privacy",
+    "evidence.backup_restore",
+    "evidence.browser",
+    "evidence.network_boundary"
+  ]
 }

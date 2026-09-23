@@ -46,3 +46,20 @@ func TestCollectRejectsMissingTerminalUsage(t *testing.T){
  input:="data: {\"id\":\"x\",\"object\":\"text_completion\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"text\":\"answer\",\"finish_reason\":\"stop\"}]}\\n\\ndata: [DONE]\\n\\n"
  if _,err:=Collect(strings.NewReader(input),"public",false,false);err==nil{t.Fatal("accepted stream without terminal usage")}
 }
+func TestCompletionTerminalChoiceCarriesUsage(t *testing.T){
+ input:=strings.Join([]string{
+  `data: {"id":"x","object":"text_completion","created":1,"model":"internal","choices":[{"index":0,"text":"a","finish_reason":null}]}`,
+  `data: {"id":"x","object":"text_completion","created":1,"model":"internal","choices":[{"index":0,"text":"b","finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":2,"reasoning_tokens":0,"total_tokens":4}}`,
+  `data: [DONE]`,"",
+ },"\n\n")
+ collected,err:=Collect(strings.NewReader(input),"public",false,false);if err!=nil{t.Fatal(err)}
+ if collected.Summary.Usage.TotalTokens!=4||collected.Summary.FinishReason!="stop"{t.Fatalf("summary = %#v",collected.Summary)}
+ w:=httptest.NewRecorder();summary,err:=Proxy(w,strings.NewReader(input),"public",false,false);if err!=nil{t.Fatal(err)}
+ if summary.Usage.TotalTokens!=4{t.Fatal("wrong stream usage")}
+ events:=[]map[string]json.RawMessage{}
+ for _,line:=range strings.Split(w.Body.String(),"\n"){if !strings.HasPrefix(line,"data: "){continue};var event map[string]json.RawMessage;if err=json.Unmarshal([]byte(strings.TrimPrefix(line,"data: ")),&event);err!=nil{t.Fatal(err)};events=append(events,event)}
+ if len(events)!=3{t.Fatalf("got %d SSE events",len(events))}
+ for i,event:=range events{if string(event["model"])!=`"public"`{t.Fatalf("event %d has wrong model",i)};if i<2&&string(event["usage"])!="null"{t.Fatalf("event %d has non-null usage",i)}}
+ var choices []json.RawMessage;if err=json.Unmarshal(events[2]["choices"],&choices);err!=nil||len(choices)!=0{t.Fatal("terminal usage chunk has choices")}
+ var usage struct{TotalTokens int `json:"total_tokens"`};if err=json.Unmarshal(events[2]["usage"],&usage);err!=nil||usage.TotalTokens!=4{t.Fatal("terminal usage chunk is invalid")}
+}

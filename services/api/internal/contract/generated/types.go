@@ -25,7 +25,7 @@ type Usage struct { PromptTokens int64 `json:"prompt_tokens"`; CompletionTokens 
 
 type SafeFailure struct { Code string `json:"code"`; Message string `json:"message"`; Retryable bool `json:"retryable"` }
 type ServiceSnapshot struct { State string `json:"state"`; Ready bool `json:"ready"`; AuthorityEpoch int64 `json:"authority_epoch"`; ReasonCode *string `json:"reason_code"` }
-type ModelSnapshot struct { State string `json:"state"`; TransitionStartedAt time.Time `json:"transition_started_at"`; OperationID *string `json:"operation_id"`; Failure *SafeFailure `json:"failure"` }
+type ModelSnapshot struct { State string `json:"state"`; TransitionStartedAt time.Time `json:"transition_started_at"`; OperationID *string `json:"operation_id"`; Failure *SafeFailure `json:"failure"`; PublicModelID string `json:"public_model_id"`; DefaultPublicModelID string `json:"default_public_model_id"` }
 type ActiveRequest struct { ID string `json:"id"`; Status string `json:"status"`; Endpoint string `json:"endpoint"`; Stream bool `json:"stream"`; ReasoningEnabled bool `json:"reasoning_enabled"`; EnqueuedAt time.Time `json:"enqueued_at"`; StartedAt time.Time `json:"started_at"` }
 type WaitingRequest struct { ID string `json:"id"`; Status string `json:"status"`; Endpoint string `json:"endpoint"`; Stream bool `json:"stream"`; ReasoningEnabled bool `json:"reasoning_enabled"`; Position int `json:"position"`; EnqueuedAt time.Time `json:"enqueued_at"`; DeadlineAt time.Time `json:"deadline_at"`; CanCancel bool `json:"can_cancel"` }
 type QueueSnapshot struct { Capacity int `json:"capacity"`; Depth int `json:"depth"`; Active *ActiveRequest `json:"active"`; Waiting []WaitingRequest `json:"waiting"` }

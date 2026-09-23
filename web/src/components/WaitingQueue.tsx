@@ -7,6 +7,7 @@ import { errorMessage } from '../api/client/http';
 import { absoluteTime, formatDuration, shortId, yesNo } from './format';
 import { RequestStatusTag } from './StatusTag';
 import { useRealtime } from '../realtime/RealtimeProvider';
+import { DataRegion, EmptyState } from './PageLayout';
 
 export interface WaitingQueueProps { waiting: WaitingRequest[]; limit?: number; headingId?: string }
 
@@ -38,12 +39,11 @@ export function WaitingQueue({ waiting, limit, headingId = 'waiting-queue-headin
     },
   });
 
-  if (visible.length === 0) return <p className="empty-state">当前没有等待请求。</p>;
+  if (visible.length === 0) return <EmptyState>当前没有等待请求。</EmptyState>;
 
   return (
     <>
-      <div className="table-scroll" role="region" aria-labelledby={headingId} tabIndex={0}>
-        <p className="table-description">表格可横向滚动。队列按后端权威 FIFO 顺位显示，不能重排。</p>
+      <DataRegion labelledBy={headingId} description="表格可横向滚动。队列按后端权威 FIFO 顺位显示，不能重排。">
         <table className="data-table">
           <caption>等待队列，按 FIFO 顺序，不能重排</caption>
           <thead><tr><th scope="col">顺位</th><th scope="col">请求标识</th><th scope="col">端点</th><th scope="col">流式</th><th scope="col">进入队列时间</th><th scope="col">已等待</th><th scope="col">超时截止时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
@@ -76,7 +76,7 @@ export function WaitingQueue({ waiting, limit, headingId = 'waiting-queue-headin
             ))}
           </tbody>
         </table>
-      </div>
+      </DataRegion>
       <Modal
         danger
         open={selected !== null}

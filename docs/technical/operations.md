@@ -3,14 +3,13 @@
 - **Status:** Implementation-ready
 - **Owner:** 运维工程师
 - **Target environment:** MVP on the current Apple Silicon Mac, private LAN/VPN only
-- **Portability target:** the same logical Compose topology on a future private Linux host; Linux deployment and acceptance are not authorized in the MVP
-- **Authoritative inputs:** `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/adr/0002-project-built-compatible-dmr.md`, `docs/adr/0004-restore-mac-deployment-target.md`, `docs/architecture/00-dmr-research.md`, and `docs/architecture/01-controller-feasibility.md`
+- **Authoritative inputs:** `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/adr/0002-project-built-compatible-dmr.md`, `docs/adr/0003-apple-silicon-mac-and-ios-client-target.md`, `docs/architecture/00-dmr-research.md`, and `docs/architecture/01-controller-feasibility.md`
 
 ## 1. Scope and non-goals
 
 This specification owns the Compose topology, immutable images, Docker Model Runner (DMR) integration, model OCI packaging, networks, configuration delivery, persistent volumes, the Compose-contained backup scheduler, operational one-shot jobs, health/readiness, telemetry transport, backup/restore, compatibility versioning, rollout/rollback, and runtime proof procedure.
 
-The Go `api` remains the sole business, queue, lifecycle, public-contract, and database-schema authority. The React/TypeScript `web` consumes backend contracts. The `controller` is only a fixed lifecycle adapter. DMR is the sole inference runtime and is a loopback-only host facility, not a Compose service. Redis, a second inference runtime, multiple models, high availability, public exposure, external alert delivery, Linux deployment, and iOS local inference are excluded.
+The Go `api` remains the sole business, queue, lifecycle, public-contract, and database-schema authority. The React/TypeScript `web` consumes backend contracts. The `controller` is only a fixed lifecycle adapter. DMR is the sole inference runtime and is a loopback-only host facility, not a Compose service. Redis, a second inference runtime, multiple models, high availability, public exposure, external alert delivery, and iOS local inference are excluded.
 
 No procedure in this document authorizes a commit, push, remote deployment, public exposure, account or secret access, host dependency installation, host startup modification, or destructive recovery of the live database. Those actions require separate authorization.
 
@@ -49,8 +48,6 @@ No operational service owns business semantics. Schema, restored-data assertions
 
 The project-built DMR SHALL listen only on host loopback at `12435`; Compose SHALL NOT publish or proxy it. API admin `8889`, PostgreSQL `5432`, controller `9090`, DMR `12435`, health endpoints, and metrics endpoints SHALL never be LAN-published. No application container—including `api`, `web`, `controller`, `backup-scheduler`, or any operational job—mounts `/var/run/docker.sock`, a Docker Desktop/Engine socket, the host root filesystem, or an unrestricted host path.
 
-The future Linux configuration may change only `LAN_BIND_ADDRESS`, immutable architecture-specific image digests, and the documented DMR host-gateway address. Service names, networks, contracts, ports, volumes, and authority boundaries remain unchanged.
-
 ### 2.2 Public and admin ingress
 
 The published `api:8888` listener accepts only `GET /v1/models`, `POST /v1/chat/completions`, and `POST /v1/completions`. It rejects `/admin/*`, `/internal/*`, health, metrics, every other path, and wrong methods before application dispatch. The distinct `api:8889` listener is bound only inside Compose and never published; it serves the backend-defined admin surface to `web` plus Compose-only health/metrics checks. `/internal/*` is rejected on `:8889` too. `web` never republishes the health/metrics paths.
@@ -65,7 +62,7 @@ All image references SHALL resolve through the compatibility manifest to a conte
 
 - `api`: multi-stage build, pinned Go builder, distroless/static runtime, non-root UID, read-only root filesystem, dropped capabilities, `no-new-privileges`, writable `tmpfs` only where required.
 - `web`: pinned build and static-server images, non-root UID, read-only root filesystem, dropped capabilities, and no runtime package installation.
-- `controller`: Linux ARM64 MVP image. A multi-stage build compiles or installs a single pinned `docker-model` plugin release/commit, verifies its published or repository-recorded SHA-256, then copies it and the narrow controller binary into a non-root read-only runtime image. `PATH` SHALL contain the fixed plugin location. The image SHALL contain no Docker CLI, shell-facing HTTP facility, package manager, curl, or general command runner in its runtime layer. Future Linux on another architecture requires a digest-pinned sibling artifact and renewed proof, not another topology.
+- `controller`: Linux ARM64 container image for Docker Desktop on the approved Mac. A multi-stage build compiles or installs a single pinned `docker-model` plugin release/commit, verifies its published or repository-recorded SHA-256, then copies it and the narrow controller binary into a non-root read-only runtime image. `PATH` SHALL contain the fixed plugin location. The image SHALL contain no Docker CLI, shell-facing HTTP facility, package manager, curl, or general command runner in its runtime layer.
 - `postgres`: a fixed PostgreSQL major/minor image digest. Major upgrades require a separately reviewed migration and restore plan.
 - operational jobs: fixed PostgreSQL-client/controller image digests; no mutable package installation at job start.
 
@@ -206,7 +203,7 @@ The repository SHALL contain one immutable release manifest (implementation path
 - context, batch, temperature, reasoning, and cache settings;
 - per-field resource provenance mapping and the manifest-bound DMR privacy-gate evidence identifier, inspected surfaces, exact build set, and pass result;
 - resolved configuration hash and database migration version;
-- the evidence bundle identifier for lifecycle, inference, privacy, backup/restore, browser, and portability checks.
+- the evidence bundle identifier for lifecycle, inference, privacy, backup/restore, browser, and network-boundary checks.
 
 An upgrade changes the compatibility set as a unit. Any changed member requires renewed controller positive/negative proof, model load/inference/unload, cancellation, privacy scan, backup/restore drill, health/readiness, and browser/resource evidence. The project-built DMR and llama.cpp commits and binary SHA-256 values are independently pinned and compared with the live runtime identity before API readiness.
 
@@ -315,7 +312,7 @@ docker compose --project-name mini-inference --env-file config/runtime.mac.conf 
 | AC-034 | LAN scan reaches only configured `8888` and `8080`; direct DMR `12435` fails while authenticated inference via `8888` succeeds. |
 | AC-035 | Contract-negative tests reject arbitrary verb/path/body/query/model/argument; resolved mounts prove no Engine socket; fixed status/load/unload succeed. |
 | AC-036 | Evidence identifies fixed API key/no-login console/limited controller as accepted private-network risks and confirms private interface binding. |
-| AC-037 | Resolved topology, listener inspection, image/manifest inventory, and egress configuration prove no public listener, second runtime/model, tool executor, external alert sink, or Linux MVP deployment. |
+| AC-037 | Resolved topology, listener inspection, image/manifest inventory, and egress configuration prove no public listener, second runtime/model, tool executor, or external alert sink. |
 
 ## 15. Open gates and residual risks
 

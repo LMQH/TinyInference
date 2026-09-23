@@ -10,7 +10,7 @@ import {
   SideNavLink,
   SkeletonText,
 } from '@carbon/react';
-import { Alarm, ChartLine, DataBase, Dashboard, RequestQuote } from '@carbon/icons-react';
+import { Alarm, ChartLine, DataBase, Dashboard, Locked, RequestQuote } from '@carbon/icons-react';
 import { useLocation } from 'react-router-dom';
 import { useSnapshot } from '../api/client/hooks';
 import { ServiceStatusTag } from '../components/StatusTag';
@@ -40,9 +40,9 @@ export function AppShell({ children }: AppShellProps) {
       <a className="skip-link" href="#main-content">跳到主要内容</a>
       <Header aria-label="Mini-Inference 运维控制台">
         <HeaderMenuButton aria-label={navigationOpen ? '关闭导航' : '打开导航'} isActive={navigationOpen} onClick={() => setNavigationOpen((open) => !open)} />
-        <HeaderName href="/" prefix="Mini-Inference">运维控制台</HeaderName>
+        <HeaderName href="/" prefix="Mini-Inference">控制台</HeaderName>
         <HeaderGlobalBar>
-          <div className="header-private-boundary">无需登录，仅限私有网络</div>
+          <div className="header-private-boundary"><Locked size={14} aria-hidden="true" /> 私有网络</div>
           <div className="header-service-state">
             {snapshot.data ? <ServiceStatusTag state={snapshot.data.service.state} /> : <SkeletonText width="6rem" />}
           </div>
@@ -61,6 +61,7 @@ export function AppShell({ children }: AppShellProps) {
                 {item.label}
               </SideNavLink>
             ))}
+            <li className="side-nav-footnote"><Locked size={16} aria-hidden="true" /><span>本机运维界面<br /><small>不提供公网访问</small></span></li>
           </SideNavItems>
         </SideNav>
       </Header>

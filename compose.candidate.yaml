@@ -1,0 +1,58 @@
+services:
+  controller:
+    environment:
+      VERIFICATION_MODE: candidate
+      CANDIDATE_GUARD_FILE: /run/candidate.guard
+      CANDIDATE_MANIFEST_SHA256: ${COMPATIBILITY_MANIFEST_SHA256:?record candidate manifest hash}
+    volumes:
+      - type: bind
+        source: ./var/artifacts/candidate/guard
+        target: /run/candidate.guard
+        read_only: true
+        bind:
+          create_host_path: false
+  api:
+    environment:
+      VERIFICATION_MODE: candidate
+    ports: !override
+      - name: candidate-inference
+        target: 8888
+        published: "18888"
+        host_ip: 127.0.0.1
+        protocol: tcp
+  web:
+    ports: !override
+      - name: candidate-console
+        target: 8080
+        published: "18080"
+        host_ip: 127.0.0.1
+        protocol: tcp
+  backup-scheduler:
+    volumes: !override
+      - type: bind
+        source: ./var/artifacts/candidate/backups
+        target: /backups
+  backup-prune:
+    volumes: !override
+      - type: bind
+        source: ./var/artifacts/candidate/backups
+        target: /backups
+  restore-drill:
+    environment:
+      EXPECTED_PUBLIC_MODEL_ID_FILE: /run/candidate/expected-public-model-id
+    volumes: !override
+      - type: bind
+        source: ./var/artifacts/candidate/backups
+        target: /backups
+        read_only: true
+      - restore-evidence:/evidence
+      - type: bind
+        source: ./var/artifacts/candidate/expected-public-model-id
+        target: /run/candidate/expected-public-model-id
+        read_only: true
+        bind:
+          create_host_path: false
+
+configs:
+  compatibility_manifest:
+    file: ./var/artifacts/candidate/compatibility-manifest.json

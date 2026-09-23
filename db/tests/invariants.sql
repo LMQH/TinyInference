@@ -20,7 +20,7 @@ BEGIN
  IF has_table_privilege('mini_controller_epoch','public.inference_requests','SELECT') OR NOT has_table_privilege('mini_controller_epoch','public.controller_authority_epoch','SELECT') THEN
    RAISE EXCEPTION 'controller authority role is over/under privileged';
  END IF;
- IF (SELECT array_agg(version ORDER BY version) FROM schema_migrations)<>ARRAY[1::bigint,2,3,4,5,6] THEN
+ IF (SELECT array_agg(version ORDER BY version) FROM schema_migrations)<>ARRAY[1::bigint,2,3,4,5,6,7] THEN
    RAISE EXCEPTION 'migration sequence is not exact';
  END IF;
  IF has_function_privilege('mini_restore','public.assert_restore_schema()','EXECUTE') OR NOT has_function_privilege('mini_restore','public.record_restore_proof(uuid,text,timestamptz,timestamptz,bigint,bigint,bigint,bigint,text)','EXECUTE') THEN

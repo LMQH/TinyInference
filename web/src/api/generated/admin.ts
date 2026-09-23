@@ -1,4 +1,4 @@
-/* Generated from admin.openapi.yaml@5d7c6eb and admin-events.schema.json@ab17369. Do not hand-edit wire shapes. */
+/* Generated from admin.openapi.yaml@b0434ef and admin-events.schema.json@ab17369. Do not hand-edit wire shapes. */
 export type ServiceState = 'starting' | 'ready' | 'degraded' | 'stopping';
 export type ModelState = 'unloaded' | 'starting' | 'ready' | 'stopping' | 'unavailable';
 export type RequestStatus =
@@ -60,7 +60,11 @@ export interface ModelSnapshot {
   transition_started_at: string;
   operation_id: string | null;
   failure: SafeFailure | null;
+  public_model_id: string;
+  default_public_model_id: string;
 }
+
+export interface ModelNameSaved { public_model_id: string; snapshot_version: number }
 
 export interface ActiveRequest {
   id: string;

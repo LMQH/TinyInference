@@ -31,8 +31,8 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'mini_restore has an active production session';
   END IF;
-  IF (SELECT max(version) FROM public.schema_migrations) <> 6 THEN
-    RAISE EXCEPTION 'schema version 6 is required';
+  IF (SELECT max(version) FROM public.schema_migrations) <> 7 THEN
+    RAISE EXCEPTION 'schema version 7 is required';
   END IF;
   EXECUTE format('GRANT CONNECT ON DATABASE %I TO mini_restore', current_database());
 END

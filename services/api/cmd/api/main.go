@@ -47,7 +47,7 @@ func run()error{
 
  ctx,cancel:=context.WithTimeout(context.Background(),20*time.Second);defer cancel()
  st,e:=store.Open(ctx,dsn);if e!=nil{return errors.New("db_open")};defer st.Close()
- if e=st.RequireSchema(ctx,6);e!=nil{return errors.New("db_schema")}
+ if e=st.RequireSchema(ctx,7);e!=nil{return errors.New("db_schema")}
  fence,e:=authority.Acquire(ctx,dsn);if e!=nil{return errors.New("authority_acquire")};defer fence.Close(context.Background())
  if e=st.Reconcile(ctx,fence.Holder(),fence.Epoch());e!=nil{return errors.New("authority_reconcile")}
  controller,e:=lifecycle.NewController(required("CONTROLLER_BASE_URL"));if e!=nil{return errors.New("controller_init")}

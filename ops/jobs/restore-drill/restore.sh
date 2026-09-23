@@ -29,6 +29,13 @@ trap 'exit 143' TERM
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 pg_restore --exit-on-error --no-owner --no-privileges --dbname="$RESTORE_DATABASE_URL" "$archive" >/dev/null
 result=$(psql --dbname="$RESTORE_ASSERT_DATABASE_URL" -X -qAt --no-psqlrc --set=ON_ERROR_STOP=1 --field-separator='|' -c 'SELECT request_count,input_tokens,output_tokens,reasoning_tokens FROM assert_restore_schema()')
+if [ -n "${EXPECTED_PUBLIC_MODEL_ID_FILE:-}" ]; then
+  [ -f "$EXPECTED_PUBLIC_MODEL_ID_FILE" ] && [ ! -L "$EXPECTED_PUBLIC_MODEL_ID_FILE" ] || exit 1
+  expected_public_model_id=$(cat "$EXPECTED_PUBLIC_MODEL_ID_FILE")
+  [ -n "$expected_public_model_id" ] || exit 1
+  restored_public_model_id=$(psql --dbname="$RESTORE_ASSERT_DATABASE_URL" -X -qAt --no-psqlrc --set=ON_ERROR_STOP=1 -c 'SELECT public_model_id FROM public_model_identity WHERE singleton')
+  [ "$restored_public_model_id" = "$expected_public_model_id" ] || { echo 'restored public model name mismatch' >&2; exit 1; }
+fi
 case "$result" in *'|'*'|'*'|'*) ;; *) echo 'restore assertion returned an invalid shape' >&2; exit 1;; esac
 IFS='|' read -r count input output reasoning <<EOF
 $result

@@ -5,7 +5,7 @@
 - **目标文件：** `docs/quality/01-test-spec.md`
 - **适用范围：** Mini-Inference MVP，AC-001～AC-037
 - **测试对象：** 后续实现形成的一个明确、不可变 revision/build
-- **权威输入：** `AGENTS.md`、`PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`（Approved）、`docs/adr/0001-system-architecture.md`（Effective）、`docs/adr/0002-project-built-compatible-dmr.md`（Effective）、`docs/adr/0004-restore-mac-deployment-target.md`（Effective）、`docs/technical/backend.md`（Implementation-ready）、`docs/technical/frontend.md`（Implementation-ready）、`docs/technical/operations.md`（Implementation-ready）
+- **权威输入：** `AGENTS.md`、`PROJECT_CONSTITUTION.md`、`docs/product/01-prd.md`（Approved）、`docs/adr/0001-system-architecture.md`（Effective）、`docs/adr/0002-project-built-compatible-dmr.md`（Effective）、`docs/adr/0003-apple-silicon-mac-and-ios-client-target.md`（Effective）、`docs/technical/backend.md`（Implementation-ready）、`docs/technical/frontend.md`（Implementation-ready）、`docs/technical/operations.md`（Implementation-ready）
 - **文档边界：** 本文件定义独立测试场景、预期可观察结果、证据和 QA 判定规则；不修改产品行为、架构或实现，不替代代码审查、合规/安全审查或用户产品验收。
 
 ## 1. 目标与原则
@@ -48,7 +48,7 @@
 
 ### 2.2 必需环境
 
-- 当前 Apple Silicon Mac 私有网络环境；Linux、计算盒子和公共网络环境均不属于本轮 MVP 验收。
+- 当前 Apple Silicon Mac 私有网络环境；公共网络环境不属于本轮 MVP 验收。
 - 应用服务只由项目 Compose 启动；宿主机不得直接启动 `api`、`web`、`controller` 或 PostgreSQL。DMR 是项目构建的宿主机 loopback 设施，不属于 Compose 服务。
 - DMR 是唯一推理运行时；真实加载 llama.cpp，通过 Metal 后端运行批准 GGUF 并观察 Metal 启用。
 - 唯一逻辑 Compose 拓扑：`api`、`web`、`controller`、`postgres`、`backup-scheduler`，以及批准的一次性运维 job；`api` 仅一副本。
@@ -209,7 +209,7 @@ artifacts/qa/<revision>/<run-id>/
 
 **覆盖：** AC-008  
 **步骤：** 从 LAN 端口 8888 调用 `GET /v1/models`：正确 key、缺失、错误、重复、非 Bearer；并在 unloaded 与 ready 时各验证目录。  
-**预期：** 正确 key 得 200 且仅公共稳定 model ID；所有坏凭据得相同稳定 401、`WWW-Authenticate: Bearer`，不泄露内部 ref/path；目录在 unloaded 仍可列出，但推理不可用。  
+**预期：** 正确 key 得 200 且仅当前对外 model ID；模型名替换后的矩阵见 [补充测试规格](02-model-name-mapping.md)；所有坏凭据得相同稳定 401、`WWW-Authenticate: Bearer`，不泄露内部 ref/path；目录在 unloaded 仍可列出，但推理不可用。
 **证据：** 净化后的 status/header/envelope；不得保存 Authorization。
 
 #### RT-API-02 — Chat 与 completion 四条真实主流程
@@ -326,7 +326,7 @@ artifacts/qa/<revision>/<run-id>/
 
 **覆盖：** AC-003、004、020、024  
 **步骤：** 操作期间观察 UI；断开 SSE 后改变状态；验证 `Last-Event-ID` 补发与超过 1000/过期游标 `resync_required`；注入重复事件和未知枚举。  
-**预期：** HTTP 202/按钮不被当作业务完成；UI 依据 snapshot/operations 呈现；断线且 polling 失败时保留最后快照并标陈旧；恢复后与权威快照一致；重复事件幂等；未知值明确显示无法识别且不映射成功；动作不自动重试。  
+**预期：** HTTP 202/按钮不被当作业务完成；UI 依据 snapshot/operations 呈现；动作受理后的快照或 operations 刷新被 SSE/新一轮查询取消时，不得把已经返回 202 的动作改写为提交失败；断线且 polling 失败时保留最后快照并标陈旧；恢复后与权威快照一致；重复事件幂等；未知值明确显示无法识别且不映射成功；动作不自动重试。
 **证据：** HAR（净化）、event IDs、snapshot versions、录屏与状态时间线。
 
 #### RT-UI-03 — 资源、请求/token/性能指标一致性
@@ -415,7 +415,7 @@ artifacts/qa/<revision>/<run-id>/
 
 **覆盖：** AC-005、013、027、035、037  
 **步骤：** 检查运行 inventory、route catalog、UI、egress 和 Compose；结合 RT-API-04/RT-OBS-01 的动态证据。  
-**预期：** 无第二 model/runtime、聊天 UI、账号/多租户、HA、Redis/broker replay、Embeddings/Anthropic/Ollama 公共端点、工具 executor、外部告警、持久 cache、任意 Docker command、Linux MVP deployment。静态检查只能证明配置面，工具/告警无副作用必须有动态证据。  
+**预期：** 无第二 model/runtime、聊天 UI、账号/多租户、HA、Redis/broker replay、Embeddings/Anthropic/Ollama 公共端点、工具 executor、外部告警、持久 cache 或任意 Docker command。静态检查只能证明配置面，工具/告警无副作用必须有动态证据。
 **证据：** inventory、route/OpenAPI contract、UI capture、egress、Compose。
 
 ## 6. AC-001～AC-037 追踪矩阵

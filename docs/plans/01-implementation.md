@@ -4,14 +4,14 @@
 - **Owner / integration owner:** 后端开发工程师 (`backend`)
 - **Target repository:** `/Users/lmqhx/code_space/TinyInference`
 - **Authorized change set:** implementation planning only; this plan does not authorize implementation, commit, push, remote deployment, account/secret access, host dependency installation, host scheduler installation, public exposure, or destructive live-database recovery
-- **Authoritative inputs:** `AGENTS.md`, `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/adr/0002-project-built-compatible-dmr.md`, `docs/adr/0003-compute-appliance-compose-gpu-runtime.md`, `docs/technical/backend.md`, `docs/technical/frontend.md`, `docs/technical/operations.md`, and `docs/plans/02-compute-appliance-feasibility.md`
+- **Authoritative inputs:** `AGENTS.md`, `PROJECT_CONSTITUTION.md`, `docs/product/01-prd.md`, `docs/adr/0001-system-architecture.md`, `docs/adr/0002-project-built-compatible-dmr.md`, `docs/adr/0003-apple-silicon-mac-and-ios-client-target.md`, `docs/technical/backend.md`, `docs/technical/frontend.md`, and `docs/technical/operations.md`
 - **Independent verification input:** `docs/quality/01-test-spec.md`
-- **Target acceptance:** PRD `AC-001` through `AC-037`, with real target-appliance Compose, DMR, GPU offload, model, database, backup/restore, and browser evidence
-- **Specification review result:** reviewed specifications are aligned for contract generation and implementation. Gates A and B in `02-compute-appliance-feasibility.md` are mandatory prerequisites; this plan begins full implementation only after both pass.
+- **Target acceptance:** PRD `AC-001` through `AC-037`, with real Mac Compose, DMR, Metal, model, database, backup/restore, and browser evidence
+- **Specification review result:** reviewed specifications are aligned for contract generation and implementation. The plan incorporates the final listener separation, authority/lifecycle serialization, reconciliation, retention, DMR keep-alive/privacy, and scoped resource contracts.
 
 ## 1. Delivery rules
 
-1. Implement only the approved P0 scope on the current Apple Silicon Mac. P1/P2 work, Linux or compute-appliance deployment, public exposure, multi-model support, a second inference runtime, tool execution, HA, accounts, external notifications, persistent prompt/KV cache, iOS local inference/server work, and full OpenAI compatibility are prohibited.
+1. Implement only the approved P0 scope on the current Apple Silicon Mac. P1/P2 work, public exposure, multi-model support, a second inference runtime, tool execution, HA, accounts, external notifications, persistent prompt/KV cache, iOS local inference/server work, and full OpenAI compatibility are prohibited.
 2. The implementation owner does not approve its own work. Runtime QA, code review, compliance/security review, and product acceptance are separate gates against an identified revision and compatibility-manifest digest.
 3. 后端开发工程师 is the single integration owner. Integration ownership means sealing shared contracts, coordinating checkpoints, assembling the candidate revision, and resolving cross-component contract drift. It does **not** permit edits in another owner's paths.
 4. No file has concurrent writers. Every task below has one owner and an exclusive allowed-path set. A task may consume another owner's files read-only after the named checkpoint.
@@ -68,7 +68,7 @@ Pass requires the pinned controller plugin, explicit host-loopback `MODEL_RUNNER
 
 ### IC-03 — Integrated Contract and Data Gate
 
-**Integration owner:** 后端开发工程师. Consume, without editing, frontend and operations artifacts. Verify generated frontend types match the sealed producer bundle, all five migrations precede API authority acquisition, prior running requests and model operations reconcile before lifecycle admission, LAN `:8888` is public-only, admin `:8889` is Compose-only behind the exact web proxy allowlist, authority header/turnover semantics match, Compose names/configuration match sealed inputs, the compatibility manifest references exact artifacts, and operational jobs use backend-owned predicates/assertions. Resolve drift with the owning task; never patch another owner's path.
+**Integration owner:** 后端开发工程师. Consume, without editing, frontend and operations artifacts. Verify generated frontend types match the sealed producer bundle, all seven migrations precede API authority acquisition, prior running requests and model operations reconcile before lifecycle admission, LAN `:8888` is public-only, admin `:8889` is Compose-only behind the exact web proxy allowlist, authority header/turnover semantics match, Compose names/configuration match sealed inputs, the compatibility manifest references exact artifacts, and operational jobs use backend-owned predicates/assertions. Resolve drift with the owning task; never patch another owner's path.
 
 ### IC-04 — Candidate Freeze
 
@@ -261,7 +261,7 @@ Evidence records the candidate revision, compatibility-manifest digest, timestam
 - **Owners:** 合规审查专员 (`compliance`) issues the gate; 安全审查专员 (`security-reviewer`) supplies independent security findings
 - **Input:** exact G-CR-passed revision, compatibility manifest, topology/privacy/lifecycle/data evidence
 - **Required report:** `docs/quality/04-compliance-security.md`, naming revision and manifest digest
-- **Review focus:** private-interface binding; LAN `:8888` public-inference-only and LAN `:8080` console-only; Compose-only admin `:8889`; direct admin/internal/health/metrics rejection; DMR/controller/PostgreSQL internal; no Engine socket; serialized controller capability and epoch+holder turnover resistance; secret-file delivery; immutable/pinned artifacts; accepted fixed-key/no-login risks; transient-only inaccessible DMR memory handling and zero prohibited disk/log/backup/browser persistence; no external alert/tool-execution/public/multi-model/second-runtime/Linux-deployment path; strict backup expiry; restore authorization boundary
+- **Review focus:** private-interface binding; LAN `:8888` public-inference-only and LAN `:8080` console-only; Compose-only admin `:8889`; direct admin/internal/health/metrics rejection; DMR/controller/PostgreSQL internal; no Engine socket; serialized controller capability and epoch+holder turnover resistance; secret-file delivery; immutable/pinned artifacts; accepted fixed-key/no-login risks; transient-only inaccessible DMR memory handling and zero prohibited disk/log/backup/browser persistence; no external alert/tool-execution/public/multi-model/second-runtime path; strict backup expiry; restore authorization boundary
 - **Pass rule:** explicit pass on both compliance and security findings, or a clearly blocking verdict. Accepted PRD risks are documented, not “fixed” by scope expansion.
 
 ### G-PA — User product acceptance

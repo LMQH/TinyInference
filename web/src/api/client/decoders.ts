@@ -9,6 +9,7 @@ import type {
   MetricBucket,
   MetricsResponse,
   ModelActionAccepted,
+  ModelNameSaved,
   OperationsResponse,
   RequestPage,
   RequestRecord,
@@ -126,7 +127,7 @@ function decodeResources(value: unknown): ResourceSnapshot {
 export function decodeSnapshot(value: unknown): AdminSnapshot {
   const root = object(value, 'AdminSnapshot', ['snapshot_version', 'generated_at', 'service', 'model', 'queue', 'resources', 'active_alert_count']);
   const service = object(root.service, 'service', ['state', 'ready', 'authority_epoch', 'reason_code']);
-  const model = object(root.model, 'model', ['state', 'transition_started_at', 'operation_id', 'failure']);
+  const model = object(root.model, 'model', ['state', 'transition_started_at', 'operation_id', 'failure', 'public_model_id', 'default_public_model_id']);
   const queue = object(root.queue, 'queue', ['capacity', 'depth', 'active', 'waiting']);
   return {
     snapshot_version: integer(root.snapshot_version, 'snapshot_version'),
@@ -142,6 +143,8 @@ export function decodeSnapshot(value: unknown): AdminSnapshot {
       transition_started_at: string(model.transition_started_at, 'model.transition_started_at'),
       operation_id: nullableString(model.operation_id, 'model.operation_id'),
       failure: decodeFailure(model.failure),
+      public_model_id: string(model.public_model_id, 'model.public_model_id'),
+      default_public_model_id: string(model.default_public_model_id, 'model.default_public_model_id'),
     },
     queue: {
       capacity: integer(queue.capacity, 'queue.capacity'),
@@ -209,6 +212,11 @@ export function decodeLogs(value: unknown): LogPage {
 export function decodeModelAction(value: unknown): ModelActionAccepted {
   const root = object(value, 'ModelActionAccepted', ['operation_id', 'status', 'accepted_at']);
   return { operation_id: string(root.operation_id, 'operation_id'), status: string(root.status, 'status') as 'running', accepted_at: string(root.accepted_at, 'accepted_at') };
+}
+
+export function decodeModelNameSaved(value: unknown): ModelNameSaved {
+  const root = object(value, 'ModelNameSaved', ['public_model_id', 'snapshot_version']);
+  return { public_model_id: string(root.public_model_id, 'public_model_id'), snapshot_version: integer(root.snapshot_version, 'snapshot_version') };
 }
 
 export function decodeCancel(value: unknown): CancelResult {

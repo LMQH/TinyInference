@@ -26,10 +26,10 @@
       "type": "object", "additionalProperties": false,
       "required": ["status", "version", "created_at", "target_environment", "target_architecture"],
       "properties": {
-        "status": {"enum": ["unresolved", "verified"]},
+        "status": {"enum": ["unresolved", "candidate", "verified"]},
         "version": {"const": "mvp"},
         "created_at": {"type": ["string", "null"], "format": "date-time"},
-        "target_environment": {"const": "apple-silicon-mac-private-lan"},
+        "target_environment": {"enum": ["apple-silicon-mac-private-lan", "apple-silicon-mac-local-candidate"]},
         "target_architecture": {"const": "linux/arm64"}
       }
     },
@@ -108,7 +108,7 @@
     "resource_provenance": {
       "const": {"cpu_percent": "api_container", "unified_memory": "dmr_process", "disk": "project_storage", "metal": "dmr_process"}
     },
-    "database": {"const": {"migration_version": 6}},
+    "database": {"const": {"migration_version": 7}},
     "resolved_compose_config_sha256": {"$ref": "#/$defs/sha256"},
     "privacy_gate": {
       "type": "object", "additionalProperties": false,
@@ -123,17 +123,19 @@
     },
     "evidence": {
       "type": "object", "additionalProperties": false,
-      "required": ["lifecycle", "inference", "privacy", "backup_restore", "browser", "portability"],
+      "required": ["lifecycle", "inference", "privacy", "backup_restore", "browser", "network_boundary"],
       "properties": {
         "lifecycle": {"type": ["string", "null"]}, "inference": {"type": ["string", "null"]},
         "privacy": {"type": ["string", "null"]}, "backup_restore": {"type": ["string", "null"]},
-        "browser": {"type": ["string", "null"]}, "portability": {"type": ["string", "null"]}
+        "browser": {"type": ["string", "null"]}, "network_boundary": {"type": ["string", "null"]}
       }
     },
     "unresolved_fields": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
   },
   "allOf": [
     {"if": {"properties": {"release": {"properties": {"status": {"const": "verified"}}}}},
-     "then": {"properties": {"unresolved_fields": {"maxItems": 0}, "privacy_gate": {"properties": {"status": {"const": "passed"}, "passed": {"const": true}}}}}}
+     "then": {"properties": {"release": {"properties": {"target_environment": {"const": "apple-silicon-mac-private-lan"}}}, "unresolved_fields": {"maxItems": 0}, "privacy_gate": {"properties": {"status": {"const": "passed"}, "passed": {"const": true}}}}}},
+    {"if": {"properties": {"release": {"properties": {"status": {"const": "candidate"}}}}},
+     "then": {"properties": {"release": {"properties": {"target_environment": {"const": "apple-silicon-mac-local-candidate"}}}, "privacy_gate": {"properties": {"status": {"const": "unresolved"}, "evidence_id": {"type": "null"}, "passed": {"const": false}}}}}}
   ]
 }

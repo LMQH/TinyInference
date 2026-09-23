@@ -10,21 +10,25 @@ import (
  "time"
 
  "github.com/google/uuid"
+ "github.com/jackc/pgx/v5/pgconn"
  "github.com/jackc/pgx/v5/pgxpool"
 )
 var ErrSchemaMismatch=errors.New("schema version mismatch")
+var ErrPublicModelNameChanged=errors.New("public model name changed")
 
 type Store struct{pool *pgxpool.Pool}
 func Open(ctx context.Context,dsn string)(*Store,error){p,e:=pgxpool.New(ctx,dsn);if e!=nil{return nil,e};if e=p.Ping(ctx);e!=nil{p.Close();return nil,e};return &Store{pool:p},nil}
 func(s *Store)Close(){s.pool.Close()}
 type Admit struct{Holder uuid.UUID;Epoch int64;ID uuid.UUID;Endpoint,Model string;Stream,Reasoning bool;Status string;Arrival int64;Created,Enqueued time.Time;Started *time.Time}
-func(s *Store)Admit(ctx context.Context,a Admit)error{tx,e:=s.pool.Begin(ctx);if e!=nil{return e};defer tx.Rollback(ctx);if _,e=tx.Exec(ctx,"select admit_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",a.Holder,a.Epoch,a.ID,a.Endpoint,a.Model,a.Stream,a.Reasoning,a.Status,a.Arrival,a.Created,a.Enqueued,a.Started);e!=nil{return e};if e=tx.QueryRow(ctx,"select publish_admin_event($1,$2,'queue_changed',$3::jsonb)",a.Holder,a.Epoch,[]byte(`{"changed":["queue","requests"]}`)).Scan(new(int64));e!=nil{return e};return tx.Commit(ctx)}
+func(s *Store)Admit(ctx context.Context,a Admit)error{tx,e:=s.pool.Begin(ctx);if e!=nil{return e};defer tx.Rollback(ctx);if _,e=tx.Exec(ctx,"select assert_backend_authority($1,$2)",a.Holder,a.Epoch);e!=nil{return e};if _,e=tx.Exec(ctx,"select assert_current_public_model_id($1)",a.Model);e!=nil{var pg *pgconn.PgError;if errors.As(e,&pg)&&pg.Code=="P0003"{return ErrPublicModelNameChanged};return e};if _,e=tx.Exec(ctx,"select admit_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",a.Holder,a.Epoch,a.ID,a.Endpoint,a.Model,a.Stream,a.Reasoning,a.Status,a.Arrival,a.Created,a.Enqueued,a.Started);e!=nil{return e};if e=tx.QueryRow(ctx,"select publish_admin_event($1,$2,'queue_changed',$3::jsonb)",a.Holder,a.Epoch,[]byte(`{"changed":["queue","requests"]}`)).Scan(new(int64));e!=nil{return e};return tx.Commit(ctx)}
 type Transition struct{Holder uuid.UUID;Epoch int64;ID uuid.UUID;From,To,Reason string;HTTPStatus *int16;Started,FirstToken,Completed *time.Time;Input,Output,Reasoning,QueueWait,TTFT,Duration,Generation *int64;ToolCalls bool}
 func(s *Store)Transition(ctx context.Context,x Transition)error{tx,e:=s.pool.Begin(ctx);if e!=nil{return e};defer tx.Rollback(ctx);if _,e=tx.Exec(ctx,"select transition_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",x.Holder,x.Epoch,x.ID,x.From,x.To,x.Reason,x.HTTPStatus,x.Started,x.FirstToken,x.Completed,x.Input,x.Output,x.Reasoning,x.QueueWait,x.TTFT,x.Duration,x.Generation,x.ToolCalls);e!=nil{return e};if e=tx.QueryRow(ctx,"select publish_admin_event($1,$2,'queue_changed',$3::jsonb)",x.Holder,x.Epoch,[]byte(`{"changed":["queue","requests","metrics"]}`)).Scan(new(int64));e!=nil{return e};return tx.Commit(ctx)}
 func(s *Store)Reconcile(ctx context.Context,h uuid.UUID,epoch int64)error{_,e:=s.pool.Exec(ctx,"select reconcile_prior_epoch($1,$2)",h,epoch);return e}
 func(s *Store)BeginOperation(ctx context.Context,h uuid.UUID,epoch int64,id uuid.UUID,op string,at time.Time)error{_,e:=s.pool.Exec(ctx,"select begin_model_operation($1,$2,$3,$4,$5)",h,epoch,id,op,at);return e}
 func(s *Store)FinishOperation(ctx context.Context,h uuid.UUID,epoch int64,id uuid.UUID,status,code,observed string)error{_,e:=s.pool.Exec(ctx,"select finish_model_operation($1,$2,$3,$4,$5,$6)",h,epoch,id,status,code,observed);return e}
 func(s *Store)SnapshotVersion(ctx context.Context)(int64,error){var v int64;e:=s.pool.QueryRow(ctx,"select snapshot_version from api_snapshot_state").Scan(&v);return v,e}
+func(s *Store)PublicModelID(ctx context.Context)(string,error){var id string;e:=s.pool.QueryRow(ctx,"select public_model_id from api_public_model_identity").Scan(&id);return id,e}
+func(s *Store)SetPublicModelID(ctx context.Context,h uuid.UUID,epoch int64,expected,next string)(int64,error){var v int64;e:=s.pool.QueryRow(ctx,"select set_public_model_id($1,$2,$3,$4)",h,epoch,expected,next).Scan(&v);return v,e}
 func(s *Store)Publish(ctx context.Context,h uuid.UUID,epoch int64,typ string,data []byte)(int64,error){var v int64;e:=s.pool.QueryRow(ctx,"select publish_admin_event($1,$2,$3,$4::jsonb)",h,epoch,typ,data).Scan(&v);return v,e}
 type RequestRecord struct{ID uuid.UUID `json:"id"`;Endpoint string `json:"endpoint"`;Model string `json:"public_model_id"`;Stream bool `json:"stream"`;Reasoning bool `json:"reasoning_enabled"`;ToolCalls bool `json:"tool_calls_returned"`;Status string `json:"status"`;Terminal *string `json:"terminal_code"`;HTTP *int16 `json:"http_status"`;Created time.Time `json:"created_at"`;Enqueued *time.Time `json:"enqueued_at"`;Started *time.Time `json:"started_at"`;FirstToken *time.Time `json:"first_token_at"`;Completed *time.Time `json:"completed_at"`;Input *int64 `json:"input_tokens"`;Output *int64 `json:"output_tokens"`;ReasoningTokens *int64 `json:"reasoning_tokens"`;QueueWait *int64 `json:"queue_wait_ms"`;TTFT *int64 `json:"ttft_ms"`;Duration *int64 `json:"duration_ms"`;Generation *int64 `json:"-"`;Throughput *float64 `json:"throughput_tokens_per_second"`}
 type Cursor struct{At time.Time;ID uuid.UUID}

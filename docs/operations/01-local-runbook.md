@@ -2,7 +2,7 @@
 
 ## Status
 
-This runbook is effective under ADR-0004 for the current Apple Silicon Mac. It is limited to the approved private `8888` and `8080` bindings; `8889`, `9090`, `5432`, and DMR host-loopback `12435` remain unexposed to the LAN. Never substitute `0.0.0.0`.
+This runbook is effective under ADR-0003 for the current Apple Silicon Mac. It is limited to the approved private `8888` and `8080` bindings; `8889`, `9090`, `5432`, and DMR host-loopback `12435` remain unexposed to the LAN. Never substitute `0.0.0.0`.
 
 DMR is a project-built host-loopback facility. API and controller reach it only through `http://model-runner.docker.internal:12435`; Compose does not publish or proxy the DMR port, and no service mounts an Engine socket.
 

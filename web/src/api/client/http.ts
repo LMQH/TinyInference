@@ -61,6 +61,7 @@ const cachedBodies = new Map<string, unknown>();
 
 export interface RequestOptions<T> {
   method?: 'GET' | 'POST';
+  body?: unknown;
   signal?: AbortSignal;
   decode: (value: unknown) => T;
   conditional?: boolean;
@@ -70,6 +71,7 @@ export async function requestJson<T>(path: string, options: RequestOptions<T>): 
   assertSameOriginAdminPath(path);
   const method = options.method ?? 'GET';
   const headers = new Headers({ Accept: 'application/json' });
+  if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   if (method === 'GET' && options.conditional !== false) {
     const etag = etags.get(path);
     if (etag) headers.set('If-None-Match', etag);
@@ -78,7 +80,7 @@ export async function requestJson<T>(path: string, options: RequestOptions<T>): 
   const response = await fetch(path, {
     method,
     headers,
-    body: method === 'POST' ? null : undefined,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
     credentials: 'same-origin',
     cache: 'no-store',
     redirect: 'error',

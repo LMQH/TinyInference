@@ -5,7 +5,7 @@ umask 077
 : "${ADMIN_DATABASE_URL_FILE:?}"
 : "${MIGRATIONS_ROOT:?}"
 : "${EXPECTED_SCHEMA_VERSION:?}"
-[ "$EXPECTED_SCHEMA_VERSION" = 6 ] || { echo 'unexpected schema version' >&2; exit 1; }
+[ "$EXPECTED_SCHEMA_VERSION" = 7 ] || { echo 'unexpected schema version' >&2; exit 1; }
 [ -f "$DATABASE_URL_FILE" ] && [ ! -L "$DATABASE_URL_FILE" ] || exit 1
 [ -f "$ADMIN_DATABASE_URL_FILE" ] && [ ! -L "$ADMIN_DATABASE_URL_FILE" ] || exit 1
 DATABASE_URL=$(cat "$DATABASE_URL_FILE")
@@ -73,6 +73,7 @@ migration_path() {
     4) echo "$MIGRATIONS_ROOT/000004_metrics_operations.sql";;
     5) echo "$MIGRATIONS_ROOT/000005_roles_grants.sql";;
     6) echo "$MIGRATIONS_ROOT/000006_restore_least_privilege.sql";;
+    7) echo "$MIGRATIONS_ROOT/000007_public_model_name.sql";;
     *) exit 2;;
   esac
 }
@@ -81,7 +82,7 @@ apply_version() {
   path=$(migration_path "$version")
   [ -f "$path" ] && [ ! -L "$path" ] || { echo 'migration set incomplete' >&2; exit 1; }
   case "$version" in
-    1|2|3|4)
+    1|2|3|4|7)
       psql --dbname="$DATABASE_URL" -X --no-psqlrc --set=ON_ERROR_STOP=1 \
         --command='SET ROLE mini_owner' --file="$path" >/dev/null
       ;;
@@ -104,8 +105,8 @@ for version in $versions; do
   [ "$version" = "$expected" ] || { echo 'migration history is not a contiguous prefix' >&2; exit 1; }
   expected=$((expected+1))
 done
-[ "$expected" -le 7 ] || { echo 'database migration is newer than this release' >&2; exit 1; }
-while [ "$expected" -le 6 ]; do apply_version "$expected"; expected=$((expected+1)); done
+[ "$expected" -le 8 ] || { echo 'database migration is newer than this release' >&2; exit 1; }
+while [ "$expected" -le 7 ]; do apply_version "$expected"; expected=$((expected+1)); done
 
 migrator_needs_finalization() {
   psql --dbname="$ADMIN_DATABASE_URL" -X -qAt --no-psqlrc --set=ON_ERROR_STOP=1 -c "
@@ -190,4 +191,4 @@ case "$needs_finalization" in
   *) echo 'unable to determine migrator capability state' >&2; exit 1;;
 esac
 unset needs_finalization
-echo 'schema version 6 confirmed'
+echo 'schema version 7 confirmed'

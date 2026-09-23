@@ -17,7 +17,8 @@ import (
 
 type compatibilityManifest struct {
 	Release struct {
-		Status string `json:"status"`
+		Status            string `json:"status"`
+		TargetEnvironment string `json:"target_environment"`
 	} `json:"release"`
 	Model struct {
 		OCIDigest string `json:"oci_digest"`
@@ -68,10 +69,22 @@ func verifyCompatibilityManifest() error {
 	if json.Unmarshal(raw, &manifest) != nil {
 		return errors.New("invalid compatibility manifest")
 	}
-	if manifest.Release.Status != "verified" || manifest.Database.MigrationVersion != 6 || manifest.ResolvedComposeConfigSHA256 != wantCompose || manifest.UnresolvedFields == nil || len(*manifest.UnresolvedFields) != 0 {
+	if manifest.Database.MigrationVersion != 7 || manifest.ResolvedComposeConfigSHA256 != wantCompose || manifest.UnresolvedFields == nil {
 		return errors.New("compatibility unresolved")
 	}
-	if manifest.PrivacyGate.Status != "passed" || !manifest.PrivacyGate.Passed || manifest.PrivacyGate.EvidenceID == nil || *manifest.PrivacyGate.EvidenceID == "" || manifest.PrivacyGate.ExactBuildSet == nil || manifest.Evidence.Privacy == nil || *manifest.Evidence.Privacy != *manifest.PrivacyGate.EvidenceID {
+	switch os.Getenv("VERIFICATION_MODE") {
+	case "":
+		if manifest.Release.Status != "verified" || manifest.Release.TargetEnvironment != "apple-silicon-mac-private-lan" || len(*manifest.UnresolvedFields) != 0 || manifest.PrivacyGate.Status != "passed" || !manifest.PrivacyGate.Passed || manifest.PrivacyGate.EvidenceID == nil || *manifest.PrivacyGate.EvidenceID == "" || manifest.Evidence.Privacy == nil || *manifest.Evidence.Privacy != *manifest.PrivacyGate.EvidenceID {
+			return errors.New("privacy gate unresolved")
+		}
+	case "candidate":
+		if manifest.Release.Status != "candidate" || manifest.Release.TargetEnvironment != "apple-silicon-mac-local-candidate" || manifest.PrivacyGate.Status != "unresolved" || manifest.PrivacyGate.Passed || manifest.PrivacyGate.EvidenceID != nil || manifest.Evidence.Privacy != nil {
+			return errors.New("candidate gate unresolved")
+		}
+	default:
+		return errors.New("invalid verification mode")
+	}
+	if manifest.PrivacyGate.ExactBuildSet == nil {
 		return errors.New("privacy gate unresolved")
 	}
 	builds, err := parseExactBuildSet(*manifest.PrivacyGate.ExactBuildSet)

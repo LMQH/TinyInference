@@ -20,16 +20,18 @@ import(
  "mini-inference/services/api/internal/stream"
  "mini-inference/services/api/internal/tokenizer"
 )
-type Repository interface{Admit(context.Context,store.Admit)error;Transition(context.Context,store.Transition)error}
+type Repository interface{Admit(context.Context,store.Admit)error;Transition(context.Context,store.Transition)error;PublicModelID(context.Context)(string,error)}
 type Server struct{key string;fence *authority.Fence;repo Repository;q *queue.Queue;model *modelstate.Machine;loadedObserved func()time.Time;dmr *dmr.Client;tokenizer *tokenizer.Tokenizer}
 func New(key string,f *authority.Fence,r Repository,q *queue.Queue,m *modelstate.Machine,observed func()time.Time,d *dmr.Client,t *tokenizer.Tokenizer)*Server{return &Server{key:key,fence:f,repo:r,q:q,model:m,loadedObserved:observed,dmr:d,tokenizer:t}}
 func(s *Server)Handler()http.Handler{m:=http.NewServeMux();m.HandleFunc("/v1/models",s.models);m.HandleFunc("/v1/chat/completions",s.completion(true));m.HandleFunc("/v1/completions",s.completion(false));return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){id:=newID();w.Header().Set("X-Request-ID",id);h,p:=m.Handler(r);if p==""{w.WriteHeader(404);return};if !auth.Valid(r,s.key){safeerror.Write(w,id,safeerror.New(401,"authentication_error","invalid_api_key","Invalid API key.",nil,false,nil));return};r.Header.Set("X-Internal-Request-ID",id);h.ServeHTTP(w,r)})}
-func(s *Server)models(w http.ResponseWriter,r *http.Request){id:=r.Header.Get("X-Internal-Request-ID");if r.Method!=http.MethodGet{safeerror.Write(w,id,safeerror.New(405,"invalid_request_error","method_not_allowed","Method not allowed.",nil,false,nil));return};if r.URL.RawQuery!=""||r.ContentLength>0{safeerror.Write(w,id,safeerror.Invalid("invalid_parameter",nil));return};writeJSON(w,200,map[string]any{"object":"list","data":[]any{map[string]any{"id":g.PublicModelID,"object":"model","created":0,"owned_by":"openbmb"}}})}
+func(s *Server)models(w http.ResponseWriter,r *http.Request){id:=r.Header.Get("X-Internal-Request-ID");if r.Method!=http.MethodGet{safeerror.Write(w,id,safeerror.New(405,"invalid_request_error","method_not_allowed","Method not allowed.",nil,false,nil));return};if r.URL.RawQuery!=""||r.ContentLength>0{safeerror.Write(w,id,safeerror.Invalid("invalid_parameter",nil));return};modelID,e:=s.repo.PublicModelID(r.Context());if e!=nil{safeerror.Write(w,id,safeerror.New(503,"service_unavailable_error","database_unavailable","Metadata storage is unavailable.",nil,true,nil));return};writeJSON(w,200,map[string]any{"object":"list","data":[]any{map[string]any{"id":modelID,"object":"model","created":0,"owned_by":"openbmb"}}})}
 func(s *Server)completion(chat bool)http.HandlerFunc{
  return func(w http.ResponseWriter,r *http.Request){
   idText:=r.Header.Get("X-Internal-Request-ID")
   if r.Method!=http.MethodPost{safeerror.Write(w,idText,safeerror.New(405,"invalid_request_error","method_not_allowed","Method not allowed.",nil,false,nil));return}
-  parsed,se:=parseRequest(r,chat)
+  publicModelID,e:=s.repo.PublicModelID(r.Context())
+  if e!=nil{safeerror.Write(w,idText,safeerror.New(503,"service_unavailable_error","database_unavailable","Metadata storage is unavailable.",nil,true,nil));return}
+  parsed,se:=parseRequest(r,chat,publicModelID)
   if se!=nil{safeerror.Write(w,idText,se);return}
   applyChatTemplateMode(&parsed)
   applyStreamUsage(&parsed)
@@ -49,9 +51,10 @@ func(s *Server)completion(chat bool)http.HandlerFunc{
    status:="waiting"
    var started *time.Time
    if a{status="active";x:=now;started=&x}
-   return s.repo.Admit(requestCtx,store.Admit{Holder:s.fence.Holder(),Epoch:s.fence.Epoch(),ID:id,Endpoint:wireEndpoint,Model:g.PublicModelID,Stream:isStream,Reasoning:reasoning,Status:status,Arrival:int64(qe.ArrivalSeq),Created:now,Enqueued:now,Started:started})
+   return s.repo.Admit(requestCtx,store.Admit{Holder:s.fence.Holder(),Epoch:s.fence.Epoch(),ID:id,Endpoint:wireEndpoint,Model:publicModelID,Stream:isStream,Reasoning:reasoning,Status:status,Arrival:int64(qe.ArrivalSeq),Created:now,Enqueued:now,Started:started})
   },func(*queue.Entry)error{return s.finishWaiting(context.Background(),id,"queue_timeout",504)},func(*queue.Entry)error{return s.finishWaiting(context.Background(),id,"request_cancelled",409)})
   if errors.Is(e,queue.ErrFull){after:=1;safeerror.Write(w,idText,safeerror.New(429,"rate_limit_error","queue_full","The inference queue is full.",nil,true,&after));return}
+  if errors.Is(e,store.ErrPublicModelNameChanged){p:="model";safeerror.Write(w,idText,safeerror.Invalid("unsupported_value",&p));return}
   if e!=nil{after:=5;safeerror.Write(w,idText,safeerror.New(503,"service_unavailable_error","database_unavailable","Metadata storage is unavailable.",nil,true,&after));return}
   if !active{
    result:=entry.Wait(requestCtx)
@@ -96,23 +99,23 @@ func(s *Server)completion(chat bool)http.HandlerFunc{
    return
   }
   defer resp.Body.Close()
-  if isStream{s.streamResponse(w,r,id,idText,resp,started,reasoning,chat);return}
-  s.nonStreamResponse(w,r,id,idText,resp,started,chat,reasoning)
+  if isStream{s.streamResponse(w,r,id,idText,resp,started,reasoning,chat,publicModelID);return}
+  s.nonStreamResponse(w,r,id,idText,resp,started,chat,reasoning,publicModelID)
  }
 }
 func(s *Server)inputTokens(p Parsed)int{if p.Chat!=nil{ms:=make([]tokenizer.ChatMessage,0,len(p.Chat.Messages));for _,m:=range p.Chat.Messages{content:="";if m.Content!=nil{content=*m.Content};calls:="";if len(m.ToolCalls)>0{b,_:=json.Marshal(m.ToolCalls);calls=string(b)};ms=append(ms,tokenizer.ChatMessage{Role:m.Role,Content:content,ToolCalls:calls,ToolCallID:m.ToolCallID})};tools:="";if len(p.Chat.Tools)>0{b,_:=json.Marshal(p.Chat.Tools);tools=string(b)};choice:="";if p.Chat.ToolChoice!=nil{b,_:=json.Marshal(p.Chat.ToolChoice);choice=string(b)};return s.tokenizer.CountChat(ms,tools,choice,p.Chat.Reasoning)};return s.tokenizer.CountCompletion(p.Completion.Prompt)}
 func parsedMax(p Parsed)int{if p.Chat!=nil{return p.Chat.MaxTokens};return p.Completion.MaxTokens}
-func(s *Server)nonStreamResponse(w http.ResponseWriter,r *http.Request,id uuid.UUID,idText string,resp *http.Response,started time.Time,chat,reasoning bool){
- collected,e:=stream.Collect(resp.Body,g.PublicModelID,reasoning,chat)
+func(s *Server)nonStreamResponse(w http.ResponseWriter,r *http.Request,id uuid.UUID,idText string,resp *http.Response,started time.Time,chat,reasoning bool,publicModelID string){
+ collected,e:=stream.Collect(resp.Body,publicModelID,reasoning,chat)
  if e!=nil{if persistErr:=s.finishActive(context.WithoutCancel(r.Context()),id,"failed","upstream_protocol_error",502,started,collected.Summary.FirstToken,nil,false);persistErr!=nil{s.degradePersistence();safeerror.Write(w,idText,safeerror.New(503,"service_unavailable_error","database_unavailable","Metadata storage is unavailable.",nil,true,nil));return};safeerror.Write(w,idText,safeerror.New(502,"upstream_error","upstream_protocol_error","Inference runtime returned an invalid response.",nil,false,nil));return}
  usage:=dmr.Usage{PromptTokens:collected.Summary.Usage.PromptTokens,CompletionTokens:collected.Summary.Usage.CompletionTokens,ReasoningTokens:collected.Summary.Usage.ReasoningTokens,TotalTokens:collected.Summary.Usage.TotalTokens,ReasoningPresent:true}
  if e=s.finishActive(context.WithoutCancel(r.Context()),id,"succeeded","",200,started,collected.Summary.FirstToken,&usage,collected.Summary.ToolCalls);e!=nil{s.degradePersistence();safeerror.Write(w,idText,safeerror.New(503,"service_unavailable_error","database_unavailable","Metadata storage is unavailable.",nil,true,nil));return}
  prefix,object:="cmpl_","text_completion"
  if chat{prefix,object="chatcmpl_","chat.completion"}
- writeJSON(w,200,map[string]any{"id":prefix+idText,"object":object,"created":started.Unix(),"model":g.PublicModelID,"choices":collected.Choices,"usage":collected.Summary.Usage})
+ writeJSON(w,200,map[string]any{"id":prefix+idText,"object":object,"created":started.Unix(),"model":publicModelID,"choices":collected.Choices,"usage":collected.Summary.Usage})
 }
-func(s *Server)streamResponse(w http.ResponseWriter,r *http.Request,id uuid.UUID,idText string,resp *http.Response,started time.Time,reasoning,chat bool){
- summary,e:=stream.Proxy(w,resp.Body,g.PublicModelID,reasoning,chat)
+func(s *Server)streamResponse(w http.ResponseWriter,r *http.Request,id uuid.UUID,idText string,resp *http.Response,started time.Time,reasoning,chat bool,publicModelID string){
+ summary,e:=stream.Proxy(w,resp.Body,publicModelID,reasoning,chat)
  if e!=nil{
   status,code,httpStatus:="failed","upstream_protocol_error",502
   if r.Context().Err()!=nil{status,code,httpStatus="cancelled","request_cancelled",409}
